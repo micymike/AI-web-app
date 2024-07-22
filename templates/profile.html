@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ user.username }}'s Profile - SocialApp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-blue-600 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{{ url_for('index') }}" class="text-white text-2xl font-bold">SocialApp</a>
+            <div>
+                <a href="{{ url_for('index') }}" class="text-white mr-4">Home</a>
+                <a href="{{ url_for('messages') }}" class="text-white mr-4">Messages</a>
+                <a href="{{ url_for('notifications') }}" class="text-white mr-4">Notifications</a>
+                <a href="{{ url_for('logout') }}" class="text-white">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-8">
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <div class="flex items-center mb-6">
+                <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}'s profile picture" class="w-32 h-32 rounded-full mr-6">
+                <div>
+                    <h1 class="text-3xl font-bold">{{ user.username }}</h1>
+                    <p class="text-gray-600">{{ user.email }}</p>
+                    {% if current_user.id == user.id %}
+                        <a href="{{ url_for('edit_profile') }}" class="mt-2 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">Edit Profile</a>
+                    {% elif not current_user.is_following(user) %}
+                        <form action="{{ url_for('follow', username=user.username) }}" method="POST" class="inline">
+                            <button type="submit" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">Follow</button>
+                        </form>
+                    {% else %}
+                        <form action="{{ url_for('unfollow', username=user.username) }}" method="POST" class="inline">
+                            <button type="submit" class="mt-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300">Unfollow</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+            <p class="text-lg mb-6">{{ user.bio }}</p>
+            <div class="flex space-x-4 mb-6">
+                <div>
+                    <span class="font-bold">{{ user.posts.count() }}</span> posts
+                </div>
+                <div>
+                    <span class="font-bold">{{ user.followers.count() }}</span> followers
+                </div>
+                <div>
+                    <span class="font-bold">{{ user.following.count() }}</span> following
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold mb-4">Posts</h2>
+            <div class="space-y-6">
+                {% for post in posts %}
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="mb-2">{{ post.content }}</p>
+                        {% if post.media_url %}
+                            <img src="{{ url_for('static', filename=post.media_url) }}" alt="Post media" class="w-full rounded-lg mb-2">
+                        {% endif %}
+                        <p class="text-gray-600 text-sm">Posted on {{ post.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-200 p-4 mt-8">
+        <div class="container mx-auto text-center text-gray-600">
+            &copy; 2024 SocialApp. All rights reserved.
+        </div>
+    </footer>
+</body>
+</html>

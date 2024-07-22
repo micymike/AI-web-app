@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-blue-600 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="/" class="text-white text-2xl font-bold">SocialApp</a>
+            <div>
+                <a href="/profile" class="text-white mr-4">Profile</a>
+                <a href="/messages" class="text-white mr-4">Messages</a>
+                <a href="/notifications" class="text-white mr-4">Notifications</a>
+                <a href="/logout" class="text-white">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Left Sidebar -->
+            <div class="col-span-1">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-bold mb-4">Profile</h2>
+                    <img src="/static/uploads/default.jpg" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4">
+                    <p class="text-center font-bold">Username</p>
+                    <p class="text-center text-gray-600">user@example.com</p>
+                    <p class="mt-4 text-center">Bio goes here...</p>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-span-1 md:col-span-2">
+                <!-- Create Post -->
+                <div class="bg-white p-4 rounded-lg shadow mb-8">
+                    <h2 class="text-xl font-bold mb-4">Create Post</h2>
+                    <form action="/create_post" method="POST" enctype="multipart/form-data">
+                        <textarea name="content" class="w-full p-2 border rounded mb-4" placeholder="What's on your mind?"></textarea>
+                        <input type="file" name="media" class="mb-4">
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Post</button>
+                    </form>
+                </div>
+
+                <!-- Posts Feed -->
+                <div id="posts-feed" class="space-y-8">
+                    <!-- Sample Post -->
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div class="flex items-center mb-4">
+                            <img src="/static/uploads/default.jpg" alt="User Avatar" class="w-10 h-10 rounded-full mr-4">
+                            <div>
+                                <p class="font-bold">Username</p>
+                                <p class="text-gray-600 text-sm">Posted on: Date</p>
+                            </div>
+                        </div>
+                        <p class="mb-4">This is a sample post content.</p>
+                        <img src="/static/uploads/sample-post-image.jpg" alt="Post Image" class="w-full rounded-lg mb-4">
+                        <div class="flex items-center space-x-4">
+                            <button class="text-blue-600 like-button" data-post-id="1">Like <span class="like-count">0</span></button>
+                            <button class="text-blue-600 comment-button" data-post-id="1">Comment</button>
+                        </div>
+                        <div class="comments-section hidden" data-post-id="1">
+                            <div id="comments-1" class="space-y-4 mt-4">
+                                <!-- Comments will be dynamically added here -->
+                            </div>
+                            <form class="comment-form" data-post-id="1">
+                                <textarea class="w-full p-2 border rounded" placeholder="Add a comment..."></textarea>
+                                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded mt-2">Submit</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-200 p-4 mt-8">
+        <div class="container mx-auto text-center text-gray-600">
+            &copy; 2024 SocialApp. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Like Button
+            const likeButtons = document.querySelectorAll('.like-button');
+            likeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const postId = button.getAttribute('data-post-id');
+                    let likeCountElement = button.querySelector('.like-count');
+                    let likeCount = parseInt(likeCountElement.textContent) || 0;
+                    likeCountElement.textContent = likeCount + 1;
+
+                    // Here you would typically send a request to the server to save the like
+                    // Example:
+                    // fetch('/like_post', { method: 'POST', body: JSON.stringify({ post_id: postId }) });
+                });
+            });
+
+            // Comment Button
+            const commentButtons = document.querySelectorAll('.comment-button');
+            commentButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const postId = button.getAttribute('data-post-id');
+                    const commentsSection = document.querySelector(`.comments-section[data-post-id="${postId}"]`);
+                    commentsSection.classList.toggle('hidden');
+                });
+            });
+
+            // Comment Form
+            const commentForms = document.querySelectorAll('.comment-form');
+            commentForms.forEach(form => {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const postId = form.getAttribute('data-post-id');
+                    const textarea = form.querySelector('textarea');
+                    const commentText = textarea.value.trim();
+                    if (commentText) {
+                        const commentsContainer = document.querySelector(`#comments-${postId}`);
+                        const commentDiv = document.createElement('div');
+                        commentDiv.className = 'bg-gray-100 p-2 rounded';
+                        commentDiv.textContent = commentText;
+                        commentsContainer.appendChild(commentDiv);
+                        textarea.value = '';
+
+                        // Here you would typically send a request to the server to save the comment
+                        // Example:
+                        // fetch('/comment_post', { method: 'POST', body: JSON.stringify({ post_id: postId, comment: commentText }) });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

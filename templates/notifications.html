@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - SocialApp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-blue-600 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{{ url_for('index') }}" class="text-white text-2xl font-bold">SocialApp</a>
+            <div>
+                <a href="{{ url_for('index') }}" class="text-white mr-4">Home</a>
+                <a href="{{ url_for('profile', username=current_user.username) }}" class="text-white mr-4">Profile</a>
+                <a href="{{ url_for('messages') }}" class="text-white mr-4">Messages</a>
+                <a href="{{ url_for('logout') }}" class="text-white">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-8">
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <h1 class="text-2xl font-bold mb-6">Notifications</h1>
+            <div id="notifications-container" class="space-y-4">
+                {% for notification in notifications %}
+                    <div class="p-4 bg-gray-50 rounded-lg {% if not notification.read %}border-l-4 border-blue-500{% endif %}">
+                        <p>{{ notification.content }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-200 p-4 mt-8 position bottom-0">
+        <div class="container mx-auto text-center text-gray-600">
+            &copy; 2024 SocialApp. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        const socket = io();
+        const notificationsContainer = document.getElementById('notifications-container');
+
+        socket.on('new_notification', (data) => {
+            const notificationDiv = document.createElement('div');
+            notificationDiv.className = 'p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500';
+            notificationDiv.innerHTML = `
+                <p>${data.content}</p>
+                <p class="text-xs text-gray-500 mt-1">${new Date().toLocaleString()}</p>
+            `;
+            notificationsContainer.insertBefore(notificationDiv, notificationsContainer.firstChild);
+        });
+    </script>
+</body>
+</html>

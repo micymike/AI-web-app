@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - SocialApp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-blue-600 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{{ url_for('index') }}" class="text-white text-2xl font-bold">SocialApp</a>
+            <div>
+                <a href="{{ url_for('index') }}" class="text-white mr-4">Home</a>
+                <a href="{{ url_for('profile', username=current_user.username) }}" class="text-white mr-4">Profile</a>
+                <a href="{{ url_for('notifications') }}" class="text-white mr-4">Notifications</a>
+                <a href="{{ url_for('logout') }}" class="text-white">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-8">
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <h1 class="text-2xl font-bold mb-6">Messages</h1>
+            <div class="space-y-4">
+                {% for user in users %}
+                    <a href="{{ url_for('chat', user_id=user.id) }}" class="block">
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-300">
+                            <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}'s profile picture" class="w-12 h-12 rounded-full mr-4">
+                            <div>
+                                <h2 class="font-bold">{{ user.username }}</h2>
+                                <p class="text-gray-600 text-sm">Click to chat</p>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-200 p-4 mt-8">
+        <div class="container mx-auto text-center text-gray-600">
+            &copy; 2024 SocialApp. All rights reserved.
