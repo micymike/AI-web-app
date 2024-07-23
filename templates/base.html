@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Social Media App{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-blue-600 p-4 text-white">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{{ url_for('index') }}" class="text-2xl font-bold">SocialApp</a>
+            <div>
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('profile', username=current_user.username) }}" class="mr-4">Profile</a>
+                    <a href="{{ url_for('messages') }}" class="mr-4">Messages</a>
+                    <a href="{{ url_for('notifications') }}" class="mr-4">Notifications</a>
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="mr-4">Login</a>
+                    <a href="{{ url_for('register') }}">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-8 p-4">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        const socket = io();
+        
+        socket.on('new_notification', function(data) {
+            // Handle new notification
+            console.log('New notification:', data);
+            // You can update the UI here to show the new notification
+        });
+
+        socket.on('new_message', function(data) {
+            // Handle new message
+            console.log('New message:', data);
+            // You can update the UI here to show the new message
+        });
+    </script>
+</body>
+</html>

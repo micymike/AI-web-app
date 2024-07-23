@@ -3,29 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ user.username }}'s Profile - SocialApp</title>
+    <title>{{ user.username }}'s Profile - LuNa</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .gradient-bg {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+        .post-card {
+            transition: transform 0.3s ease;
+        }
+        .post-card:hover {
+            transform: scale(1.02);
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
-    <nav class="bg-blue-600 p-4">
+    <!-- Navigation Bar -->
+    <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="{{ url_for('index') }}" class="text-white text-2xl font-bold">SocialApp</a>
+            <a href="/" class="text-white text-2xl font-bold flex items-center">
+                <i class="fas fa-globe mr-2"></i>
+                LuNa
+            </a>
             <div>
-                <a href="{{ url_for('index') }}" class="text-white mr-4">Home</a>
-                <a href="{{ url_for('messages') }}" class="text-white mr-4">Messages</a>
-                <a href="{{ url_for('notifications') }}" class="text-white mr-4">Notifications</a>
-                <a href="{{ url_for('logout') }}" class="text-white">Logout</a>
+                <a href="/" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
+                <a href="/profile/{{ current_user.username }}" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
+                <a href="/messages" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
+                <a href="/logout" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
             </div>
         </div>
     </nav>
 
     <main class="container mx-auto mt-8">
         <div class="bg-white rounded-lg shadow-md p-8">
-            <div class="flex items-center mb-6">
-                <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}'s profile picture" class="w-32 h-32 rounded-full mr-6">
-                <div>
+            <!-- User Info Section -->
+            <div class="flex flex-col md:flex-row items-center mb-6">
+                <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}'s profile picture" class="w-32 h-32 rounded-full mr-6 mb-4 md:mb-0">
+                <div class="text-center md:text-left">
                     <h1 class="text-3xl font-bold">{{ user.username }}</h1>
                     <p class="text-gray-600">{{ user.email }}</p>
+                    <p class="text-sm text-gray-500">
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        Joined {{ user.date_joined.strftime('%B %Y') if user.date_joined else 'Date not available' }}
+                      </p>
+                      
                     {% if current_user.id == user.id %}
                         <a href="{{ url_for('edit_profile') }}" class="mt-2 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">Edit Profile</a>
                     {% elif not current_user.is_following(user) %}
@@ -39,27 +70,56 @@
                     {% endif %}
                 </div>
             </div>
-            <p class="text-lg mb-6">{{ user.bio }}</p>
-            <div class="flex space-x-4 mb-6">
-                <div>
-                    <span class="font-bold">{{ user.posts.count() }}</span> posts
+
+            <!-- Bio Section -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-6">
+                <h2 class="text-xl font-semibold mb-2">About Me</h2>
+                <p class="text-gray-700">{{ user.bio }}</p>
+            </div>
+
+            <!-- Stats Section -->
+            <div class="flex flex-wrap justify-between mb-6">
+                <div class="w-full sm:w-1/3 text-center p-4 bg-blue-100 rounded-lg m-2">
+                    <span class="text-3xl font-bold text-blue-600">{{ user.posts.count() }}</span>
+                    <p class="text-gray-600">Posts</p>
                 </div>
-                <div>
-                    <span class="font-bold">{{ user.followers.count() }}</span> followers
+                <div class="w-full sm:w-1/3 text-center p-4 bg-green-100 rounded-lg m-2">
+                    <span class="text-3xl font-bold text-green-600">{{ user.followers.count() }}</span>
+                    <p class="text-gray-600">Followers</p>
                 </div>
-                <div>
-                    <span class="font-bold">{{ user.following.count() }}</span> following
+                <div class="w-full sm:w-1/3 text-center p-4 bg-purple-100 rounded-lg m-2">
+                    <span class="text-3xl font-bold text-purple-600">{{ user.following.count() }}</span>
+                    <p class="text-gray-600">Following</p>
                 </div>
             </div>
-            <h2 class="text-2xl font-bold mb-4">Posts</h2>
-            <div class="space-y-6">
+
+            <!-- Activity Chart -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold mb-4">Activity Overview</h2>
+                <canvas id="activityChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Posts Section -->
+            <h2 class="text-2xl font-bold mb-4">Recent Posts</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {% for post in posts %}
-                    <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="bg-white p-4 rounded-lg shadow post-card">
+                        <div class="flex items-center mb-2">
+                            <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full mr-2">
+                            <div>
+                                <p class="font-semibold">{{ user.username }}</p>
+                                <p class="text-gray-500 text-sm">{{ post.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+                            </div>
+                        </div>
                         <p class="mb-2">{{ post.content }}</p>
                         {% if post.media_url %}
                             <img src="{{ url_for('static', filename=post.media_url) }}" alt="Post media" class="w-full rounded-lg mb-2">
                         {% endif %}
-                        <p class="text-gray-600 text-sm">Posted on {{ post.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+                        <div class="flex items-center text-gray-500 text-sm">
+                            <button class="mr-4 hover:text-blue-500 transition duration-300"><i class="far fa-heart mr-1"></i> Like</button>
+                            <button class="mr-4 hover:text-blue-500 transition duration-300"><i class="far fa-comment mr-1"></i> Comment</button>
+                            <button class="hover:text-blue-500 transition duration-300"><i class="far fa-share-square mr-1"></i> Share</button>
+                        </div>
                     </div>
                 {% endfor %}
             </div>
@@ -68,8 +128,53 @@
 
     <footer class="bg-gray-200 p-4 mt-8">
         <div class="container mx-auto text-center text-gray-600">
-            &copy; 2024 SocialApp. All rights reserved.
+            &copy; 2024 LuNa SocialApp. All rights reserved.
         </div>
     </footer>
+
+    <script>
+        // Add hover effect to nav links
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('mouseenter', function() {
+                anime({
+                    targets: this,
+                    translateY: -3,
+                    duration: 200,
+                    easing: 'easeOutQuad'
+                });
+            });
+            link.addEventListener('mouseleave', function() {
+                anime({
+                    targets: this,
+                    translateY: 0,
+                    duration: 200,
+                    easing: 'easeOutQuad'
+                });
+            });
+        });
+
+        // Activity Chart
+        const ctx = document.getElementById('activityChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                datasets: [{
+                    label: 'Posts',
+                    data: [12, 19, 3, 5, 2, 3],
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    </script>
 </body>
 </html>

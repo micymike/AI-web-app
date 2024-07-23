@@ -3,17 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Profile - SocialApp</title>
+    <title>Edit Profile - LuNa</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .gradient-bg {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
-    <nav class="bg-blue-600 p-4">
+    <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="{{ url_for('index') }}" class="text-white text-2xl font-bold">SocialApp</a>
+            <a href="{{ url_for('index') }}" class="text-white text-2xl font-bold flex items-center">
+                <i class="fas fa-globe mr-2"></i>
+                LuNa
+            </a>
             <div>
-                <a href="{{ url_for('index') }}" class="text-white mr-4">Home</a>
-                <a href="{{ url_for('profile', username=current_user.username) }}" class="text-white mr-4">Profile</a>
-                <a href="{{ url_for('logout') }}" class="text-white">Logout</a>
+                <a href="{{ url_for('index') }}" class="text-white mr-4 hover:text-gray-200 transition duration-300">Home</a>
+                <a href="{{ url_for('profile', username=current_user.username) }}" class="text-white mr-4 hover:text-gray-200 transition duration-300">Profile</a>
+                <a href="{{ url_for('logout') }}" class="text-white hover:text-gray-200 transition duration-300">Logout</a>
             </div>
         </div>
     </nav>
@@ -37,7 +52,7 @@
 
     <footer class="bg-gray-200 p-4 mt-8">
         <div class="container mx-auto text-center text-gray-600">
-            &copy; 2024 SocialApp. All rights reserved.
+            &copy; 2024 LuNa SocialApp. All rights reserved.
         </div>
     </footer>
 </body>
