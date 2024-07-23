@@ -156,36 +156,35 @@ def unfollow(username):
         flash(f'You have unfollowed {username}.')
     return redirect(url_for('profile', username=username))
 
-@app.route('/create_post', methods=['POST'])
+@app.route('/chat', methods=['GET', 'POST'])
 @login_required
-def create_post():
-    content = request.form['content']
-    if 'media' in request.files:
-        file = request.files['media']
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            media_url = url_for('static', filename=f'uploads/{filename}')
-        else:
-            media_url = None
-    else:
-        media_url = None
-    
-    new_post = Post(content=content, user_id=current_user.id, media_url=media_url)
-    db.session.add(new_post)
-    db.session.commit()
-    
-    # Moderate the content
-    moderation_result = moderate_content(content)
-    if moderation_result['violates_guidelines']:
-        db.session.delete(new_post)
-        db.session.commit()
-        flash('Your post violates our community guidelines and has been removed.')
-    else:
-        flash('Post created successfully')
-    
-    return redirect(url_for('index'))
+def chat():
+    if request.method == 'POST':
+        user_input = request.form.get('user_input', '')
+        response = model.generate_content(f"User: {user_input}\nAI Assistant: ")
+        ai_response = response.text
+        
+        # Check if the response suggests the content might be inappropriate
+        if "inappropriate" in ai_response.lower() or "offensive" in ai_response.lower():
+            flash('Your input might be inappropriate. Please revise and try again.', 'warning')
+            return redirect(url_for('prof.chat'))
 
+        # Save the content as a post
+        new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
+        
+        if 'media' in request.files:
+            file = request.files['media']
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(os.path.join('static/uploads', filename))
+                new_post.media_url = filename
+        
+        db.session.add(new_post)
+        db.session.commit()
+        flash('Your post has been created!', 'success')
+        return redirect(url_for('prof.user_profile', username=current_user.username))
+
+    return render_template('chat.html')
 @app.route('/like/<int:post_id>', methods=['POST'])
 @login_required
 def like_post(post_id):

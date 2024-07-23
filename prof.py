@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from models import Comment, Follow, User, Like, Message, Notification, Post, db
@@ -31,10 +31,20 @@ def user_profile(username):
 @login_required
 def edit_profile():
     if request.method == 'POST':
-        current_user.username = request.form['username']
-        current_user.email = request.form['email']
-        current_user.bio = request.form['bio']
-        current_user.location = request.form['location']
+        # Use .get() to avoid KeyError
+        username = request.form.get('username')
+        email = request.form.get('email')
+        bio = request.form.get('bio')
+        location = request.form.get('location')
+
+        if username:
+            current_user.username = username
+        if email:
+            current_user.email = email
+        if bio:
+            current_user.bio = bio
+        if location:
+            current_user.location = location
 
         if 'profile_picture' in request.files:
             file = request.files['profile_picture']
@@ -48,6 +58,7 @@ def edit_profile():
         return redirect(url_for('prof.user_profile', username=current_user.username))
 
     return render_template('edit_profile.html', user=current_user)
+
 
 @profile.route('/follow/<username>', methods=['POST'])
 @login_required
@@ -93,20 +104,21 @@ def following(username):
     following = user.following.all()
     return render_template('following.html', user=user, following=following)
 
-@profile.route('/create_post', methods=['GET', 'POST'])
+@profile.route('/chat', methods=['GET', 'POST'])
 @login_required
-def create_post():
+def chat():
     if request.method == 'POST':
-        content = request.form['content']
+        user_input = request.form.get('user_input', '')
+        response = model.generate_content(f"User: {user_input}\nAI Assistant: ")
+        ai_response = response.text
         
-        # Check content with AI for community guidelines
-        response = model.generate_content(f"Check if the following content adheres to community guidelines and is not offensive or inappropriate: '{content}'")
-        
-        if "inappropriate" in response.text.lower() or "offensive" in response.text.lower():
-            flash('Your post may violate community guidelines. Please review and try again.', 'warning')
-            return redirect(url_for('prof.create_post'))
+        # Check if the response suggests the content might be inappropriate
+        if "inappropriate" in ai_response.lower() or "offensive" in ai_response.lower():
+            flash('Your input might be inappropriate. Please revise and try again.', 'warning')
+            return redirect(url_for('prof.chat'))
 
-        new_post = Post(content=content, user_id=current_user.id, timestamp=datetime.utcnow())
+        # Save the content as a post
+        new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
         
         if 'media' in request.files:
             file = request.files['media']
@@ -114,14 +126,13 @@ def create_post():
                 filename = secure_filename(file.filename)
                 file.save(os.path.join('static/uploads', filename))
                 new_post.media_url = filename
-
+        
         db.session.add(new_post)
         db.session.commit()
         flash('Your post has been created!', 'success')
         return redirect(url_for('prof.user_profile', username=current_user.username))
 
-    return render_template('create_post.html')
-
+    return render_template('chat.html')
 @profile.route('/ai_assistant', methods=['GET', 'POST'])
 @login_required
 def ai_assistant():
