@@ -3,9 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conversations - LuNa</title>
+    <title>Messages - LuNa</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/emoji-mart@latest/css/emoji-mart.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <style>
         @keyframes gradientBG {
             0% { background-position: 0% 50%; }
@@ -16,6 +20,18 @@
             background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
             background-size: 400% 400%;
             animation: gradientBG 15s ease infinite;
+        }
+        .message-bubble {
+            transition: transform 0.3s ease;
+        }
+        .message-bubble:hover {
+            transform: scale(1.05);
+        }
+        .emoji-mart {
+            position: absolute;
+            bottom: 70px;
+            right: 20px;
+            z-index: 1000;
         }
     </style>
 </head>
@@ -35,43 +51,276 @@
             </div>
         </div>
     </nav>
-
-    <div class="container mx-auto mt-8">
-        <h1 class="text-3xl font-bold mb-6">Your Conversations</h1>
-        <div class="bg-white rounded-lg shadow-md p-6">
-            {% if conversations %}
-                <ul class="space-y-4">
-                    {% for conversation in conversations %}
-                    <li class="border-b border-gray-200 pb-4 last:border-b-0">
-                        <a href="{{ url_for('messages', recipient_id=conversation.user.id) }}" class="flex items-center hover:bg-gray-50 p-2 rounded-lg transition duration-300">
-                            <img src="{{ url_for('static', filename='uploads/' + conversation.user.profile_picture) }}" alt="{{ conversation.user.username }}" class="w-12 h-12 rounded-full mr-4">
-                            <div class="flex-grow">
-                                <h2 class="font-semibold text-lg">{{ conversation.user.username }}</h2>
-                                <p class="text-gray-600 text-sm truncate">
-                                    {% if conversation.last_message %}
-                                        {{ conversation.last_message.content[:50] }}{% if conversation.last_message.content|length > 50 %}...{% endif %}
-                                    {% else %}
-                                        No messages yet
-                                    {% endif %}
-                                </p>
-                            </div>
-                            <span class="text-gray-400 text-xs">
-                                {% if conversation.last_message %}
-                                    {{ conversation.last_message.timestamp.strftime('%Y-%m-%d %H:%M') }}
+    
+    <div class="container mx-auto mt-8 flex">
+        <!-- User list -->
+        <div class="w-1/4 bg-white rounded-lg shadow-md p-4 mr-4">
+            <h2 class="text-xl font-bold mb-4">Conversations</h2>
+            <h2>All Users</h2>
+            <ul>
+            {% for user in all_users %}
+                <li><a href="{{ url_for('messages', recipient_id=user.id) }}">{{ user.username }}</a></li>
+            {% endfor %}
+            </ul>
+            
+            <h2>Recent Conversations</h2>
+            <ul>
+            {% for conversation in conversations %}
+                <li><a href="{{ url_for('messages', recipient_id=conversation.user.id) }}">{{ conversation.user.username }}</a></li>
+            {% endfor %}
+            </ul>
+        </div>
+        
+        <!-- Chat window -->
+        <div class="w-3/4 bg-white rounded-lg shadow-md p-4">
+            {% if recipient %}
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <img src="{{ url_for('static', filename='uploads/' + recipient.profile_picture) }}" alt="{{ recipient.username }}" class="w-10 h-10 rounded-full mr-3">
+                    Chat with {{ recipient.username }}
+                </h2>
+                <div class="mb-4">
+                    <input type="text" id="search-input" class="w-full border rounded-lg p-2" placeholder="Search messages...">
+                </div>
+                <!-- AI-generated conversation summary -->
+                <div id="conversation-summary" class="mb-4 p-4 bg-gray-100 rounded-lg">
+                    <h3 class="font-bold mb-2">Conversation Summary</h3>
+                    <p id="summary-content">{{ summary }}</p>
+                </div>
+                <!-- AI-suggested conversation starters -->
+                <div id="conversation-starters" class="mb-4">
+                    <h3 class="font-bold mb-2">Conversation Starters</h3>
+                    <ul id="starters-list" class="list-disc pl-5">
+                        {% for starter in starters %}
+                            <li class="cursor-pointer hover:text-blue-500" onclick="useConversationStarter(this.textContent)">{{ starter }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div id="chat-messages" class="h-96 overflow-y-auto mb-4 p-4 border rounded-lg">
+                    {% for message in messages %}
+                        <div class="mb-4 {% if message.sender_id == current_user.id %}text-right{% endif %}">
+                            <div class="inline-block message-bubble {% if message.sender_id == current_user.id %}bg-blue-500 text-white{% else %}bg-gray-300{% endif %} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
+                                {% if message.media_url %}
+                                    <img src="{{ message.media_url }}" alt="Shared media" class="max-w-full h-auto rounded-lg mb-2">
                                 {% endif %}
-                            </span>
-                        </a>
-                    </li>
+                                {{ message.content }}
+                                <!-- Display message sentiment -->
+                                <span class="ml-2 text-xs">
+                                    {% if message.sentiment == 'positive' %}
+                                        <i class="fas fa-smile text-green-500"></i>
+                                    {% elif message.sentiment == 'negative' %}
+                                        <i class="fas fa-frown text-red-500"></i>
+                                    {% else %}
+                                        <i class="fas fa-meh text-gray-500"></i>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                {{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                                {% if message.sender_id == current_user.id %}
+                                    <span class="ml-2 status-indicator" data-message-id="{{ message.id }}">
+                                        {% if message.read %}
+                                            <i class="fas fa-check-double text-blue-500"></i>
+                                        {% elif message.delivered %}
+                                            <i class="fas fa-check-double"></i>
+                                        {% else %}
+                                            <i class="fas fa-check"></i>
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
                     {% endfor %}
-                </ul>
+                </div>
+                <div id="typing-indicator" class="text-sm text-gray-500 mb-2 hidden">
+                    <i class="fas fa-pencil-alt mr-2"></i>{{ recipient.username }} is typing...
+                </div>
+                <!-- AI-suggested reply -->
+                <div id="ai-reply-suggestion" class="mb-4 p-2 bg-yellow-100 rounded-lg hidden">
+                    <p class="font-bold">AI Suggested Reply:</p>
+                    <p id="ai-suggestion-content"></p>
+                    <button onclick="useAISuggestion()" class="mt-2 bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600 transition duration-300">Use Suggestion</button>
+                </div>
+                <form id="message-form" action="{{ url_for('send_message', recipient_id=recipient.id) }}" method="POST" class="mt-4" enctype="multipart/form-data">
+                    <div class="flex items-center">
+                        <input type="text" name="content" id="message-input" class="flex-grow border rounded-l-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Type your message..." required>
+                        <button type="button" id="emoji-button" class="bg-gray-200 text-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-300 transition duration-300">
+                            <i class="far fa-smile"></i>
+                        </button>
+                        <label for="file-input" class="cursor-pointer bg-green-500 text-white px-3 py-2 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-300">
+                            <i class="fas fa-paperclip"></i>
+                        </label>
+                        <input id="file-input" type="file" name="media" accept="image/*" class="hidden">
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
+                            <i class="fas fa-paper-plane mr-2"></i>Send
+                        </button>
+                    </div>
+                </form>
             {% else %}
-                <p class="text-gray-600 text-center py-4">You don't have any conversations yet.</p>
+                <p class="text-gray-500 text-center mt-20">Select a user to start chatting</p>
             {% endif %}
         </div>
     </div>
 
     <script>
-        // You can add any JavaScript functionality here if needed
+        const socket = io();
+        const chatMessages = document.getElementById('chat-messages');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const searchInput = document.getElementById('search-input');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const emojiButton = document.getElementById('emoji-button');
+        const fileInput = document.getElementById('file-input');
+        const aiReplySuggestion = document.getElementById('ai-reply-suggestion');
+        const aiSuggestionContent = document.getElementById('ai-suggestion-content');
+        let typingTimeout;
+
+        if (messageForm) {
+            messageForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(messageForm);
+                fetch(messageForm.action, {
+                    method: 'POST',
+                    body: formData
+                }).then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        messageInput.value = '';
+                        fileInput.value = '';
+                        addMessage(data.message);
+                    } else if (data.status === 'error') {
+                        alert('Message rejected: ' + data.message);
+                    }
+                });
+            });
+
+            messageInput.addEventListener('input', () => {
+                socket.emit('typing', { recipient_id: {{ recipient.id if recipient else 'null' }} });
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    socket.emit('stop_typing', { recipient_id: {{ recipient.id if recipient else 'null' }} });
+                }, 3000);
+            });
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const messages = chatMessages.querySelectorAll('.mb-4');
+                messages.forEach(message => {
+                    const content = message.textContent.toLowerCase();
+                    if (content.includes(searchTerm)) {
+                        message.style.display = 'block';
+                    } else {
+                        message.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        if (emojiButton) {
+            const picker = new EmojiMart.Picker({ 
+                onEmojiSelect: (emoji) => {
+                    messageInput.value += emoji.native;
+                    messageInput.focus();
+                }
+            });
+            
+            emojiButton.addEventListener('click', () => {
+                if (document.body.contains(picker)) {
+                    document.body.removeChild(picker);
+                } else {
+                    document.body.appendChild(picker);
+                }
+            });
+        }
+
+        function addMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-4 ${message.sender_id == {{ current_user.id }} ? 'text-right' : ''}`;
+            let mediaHtml = '';
+            if (message.media_url) {
+                mediaHtml = `<img src="${message.media_url}" alt="Shared media" class="max-w-full h-auto rounded-lg mb-2">`;
+            }
+            let sentimentIcon = '';
+            if (message.sentiment === 'positive') {
+                sentimentIcon = '<i class="fas fa-smile text-green-500"></i>';
+            } else if (message.sentiment === 'negative') {
+                sentimentIcon = '<i class="fas fa-frown text-red-500"></i>';
+            } else {
+                sentimentIcon = '<i class="fas fa-meh text-gray-500"></i>';
+            }
+            messageDiv.innerHTML = `
+                <div class="inline-block message-bubble ${message.sender_id == {{ current_user.id }} ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
+                    ${mediaHtml}
+                    ${message.content}
+                    <span class="ml-2 text-xs">${sentimentIcon}</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    ${new Date(message.timestamp).toLocaleString()}
+                    ${message.sender_id == {{ current_user.id }} ? '<span class="ml-2 status-indicator" data-message-id="' + message.id + '"><i class="fas fa-check"></i></span>' : ''}
+                </div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            anime({
+                targets: messageDiv,
+                opacity: [0, 1],
+                translateY: [20, 0],
+                duration: 500,
+                easing: 'easeOutQuad'
+            });
+        }
+
+        socket.on('new_message', (data) => {
+            if (data.recipient_id == {{ current_user.id }} || data.sender_id == {{ current_user.id }}) {
+                addMessage(data);
+                if (data.sender_id != {{ current_user.id }}) {
+                    socket.emit('message_read', { message_id: data.id });
+                }
+            }
+        });
+
+        socket.on('message_status_update', (data) => {
+            const statusIndicator = document.querySelector(`.status-indicator[data-message-id="${data.message_id}"]`);
+            if (statusIndicator) {
+                if (data.status === 'read') {
+                    statusIndicator.innerHTML = '<i class="fas fa-check-double text-blue-500"></i>';
+                } else if (data.status === 'delivered') {
+                    statusIndicator.innerHTML = '<i class="fas fa-check-double"></i>';
+                }
+            }
+        });
+
+        socket.on('typing', (data) => {
+            if (data.sender_id != {{ current_user.id }}) {
+                typingIndicator.classList.remove('hidden');
+            }
+        });
+
+        socket.on('stop_typing', (data) => {
+            if (data.sender_id != {{ current_user.id }}) {
+                typingIndicator.classList.add('hidden');
+            }
+        });
+
+        socket.on('ai_reply_suggestion', (data) => {
+            aiSuggestionContent.textContent = data.suggestion;
+            aiReplySuggestion.classList.remove('hidden');
+        });
+
+        function useAISuggestion() {
+            messageInput.value = aiSuggestionContent.textContent;
+            aiReplySuggestion.classList.add('hidden');
+        }
+
+        function useConversationStarter(starter) {
+            messageInput.value = starter;
+            messageInput.focus();
+        }
+
+        // Initial scroll to bottom of chat
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     </script>
 </body>
 </html>

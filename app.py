@@ -256,13 +256,14 @@ def messages(recipient_id):
         starters = suggest_conversation_starters(current_user.id, recipient_id)
         recipient = User.query.get(recipient_id)  # Fetch the recipient user
         return render_template('messages.html', messages=messages, summary=summary, starters=starters, recipient=recipient)
-
+def get_all_users(current_user_id):
+    return User.query.filter(User.id != current_user_id).all()
 @app.route('/conversations')
 @login_required
 def conversations():
-    # Fetch all conversations for the current user
     user_conversations = get_user_conversations(current_user.id)
-    return render_template('conversations.html', conversations=user_conversations)
+    all_users = get_all_users(current_user.id)
+    return render_template('conversations.html', conversations=user_conversations, all_users=all_users)
 @app.route('/api/conversation_summary/<int:other_user_id>')
 @login_required
 def api_conversation_summary(other_user_id):

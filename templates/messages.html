@@ -96,6 +96,10 @@
                     {% for message in messages %}
                         <div class="mb-4 {% if message.sender_id == current_user.id %}text-right{% endif %}">
                             <div class="inline-block message-bubble {% if message.sender_id == current_user.id %}bg-blue-500 text-white{% else %}bg-gray-300{% endif %} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
+                                <div class="flex items-center mb-2">
+                                    <img src="{{ url_for('static', filename='uploads/' + (current_user.profile_picture if message.sender_id == current_user.id else recipient.profile_picture)) }}" alt="{{ 'You' if message.sender_id == current_user.id else recipient.username }}" class="w-6 h-6 rounded-full mr-2">
+                                    <span class="font-bold">{{ 'You' if message.sender_id == current_user.id else recipient.username }}</span>
+                                </div>
                                 {% if message.media_url %}
                                     <img src="{{ message.media_url }}" alt="Shared media" class="max-w-full h-auto rounded-lg mb-2">
                                 {% endif %}
@@ -137,7 +141,7 @@
                     <p id="ai-suggestion-content"></p>
                     <button onclick="useAISuggestion()" class="mt-2 bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600 transition duration-300">Use Suggestion</button>
                 </div>
-                <form id="message-form" action="{{ url_for('send_message', recipient_id=recipient.id) }}" method="POST" class="mt-4" enctype="multipart/form-data">
+                <form id="message-form" action="{{ url_for('send_message_route', recipient_id=recipient.id) }}" method="POST" class="mt-4" enctype="multipart/form-data">
                     <div class="flex items-center">
                         <input type="text" name="content" id="message-input" class="flex-grow border rounded-l-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Type your message..." required>
                         <button type="button" id="emoji-button" class="bg-gray-200 text-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-300 transition duration-300">
@@ -170,6 +174,53 @@
         const aiReplySuggestion = document.getElementById('ai-reply-suggestion');
         const aiSuggestionContent = document.getElementById('ai-suggestion-content');
         let typingTimeout;
+
+        function addMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-4 ${message.sender_id == {{ current_user.id }} ? 'text-right' : ''}`;
+            let mediaHtml = '';
+            if (message.media_url) {
+                mediaHtml = `<img src="${message.media_url}" alt="Shared media" class="max-w-full h-auto rounded-lg mb-2">`;
+            }
+            let sentimentIcon = '';
+            if (message.sentiment === 'positive') {
+                sentimentIcon = '<i class="fas fa-smile text-green-500"></i>';
+            } else if (message.sentiment === 'negative') {
+                sentimentIcon = '<i class="fas fa-frown text-red-500"></i>';
+            } else {
+                sentimentIcon = '<i class="fas fa-meh text-gray-500"></i>';
+            }
+            
+            const isCurrentUser = message.sender_id == {{ current_user.id }};
+            const profilePicture = isCurrentUser ? "{{ current_user.profile_picture }}" : "{{ recipient.profile_picture }}";
+            const username = isCurrentUser ? "You" : "{{ recipient.username }}";
+            
+            messageDiv.innerHTML = `
+                <div class="inline-block message-bubble ${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
+                    <div class="flex items-center mb-2">
+                        <img src="{{ url_for('static', filename='uploads/') }}${profilePicture}" alt="${username}" class="w-6 h-6 rounded-full mr-2">
+                        <span class="font-bold">${username}</span>
+                    </div>
+                    ${mediaHtml}
+                    ${message.content}
+                    <span class="ml-2 text-xs">${sentimentIcon}</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    ${new Date(message.timestamp).toLocaleString()}
+                    ${isCurrentUser ? '<span class="ml-2 status-indicator" data-message-id="' + message.id + '"><i class="fas fa-check"></i></span>' : ''}
+                </div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            anime({
+                targets: messageDiv,
+                opacity: [0, 1],
+                translateY: [20, 0],
+                duration: 500,
+                easing: 'easeOutQuad'
+            });
+        }
 
         if (messageForm) {
             messageForm.addEventListener('submit', (e) => {
@@ -231,47 +282,23 @@
             });
         }
 
-        function addMessage(message) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `mb-4 ${message.sender_id == {{ current_user.id }} ? 'text-right' : ''}`;
-            let mediaHtml = '';
-            if (message.media_url) {
-                mediaHtml = `<img src="${message.media_url}" alt="Shared media" class="max-w-full h-auto rounded-lg mb-2">`;
-            }
-            let sentimentIcon = '';
-            if (message.sentiment === 'positive') {
-                sentimentIcon = '<i class="fas fa-smile text-green-500"></i>';
-            } else if (message.sentiment === 'negative') {
-                sentimentIcon = '<i class="fas fa-frown text-red-500"></i>';
-            } else {
-                sentimentIcon = '<i class="fas fa-meh text-gray-500"></i>';
-            }
-            messageDiv.innerHTML = `
-                <div class="inline-block message-bubble ${message.sender_id == {{ current_user.id }} ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
-                    ${mediaHtml}
-                    ${message.content}
-                    <span class="ml-2 text-xs">${sentimentIcon}</span>
-                </div>
-                <div class="text-xs text-gray-500 mt-1">
-                    ${new Date(message.timestamp).toLocaleString()}
-                    ${message.sender_id == {{ current_user.id }} ? '<span class="ml-2 status-indicator" data-message-id="' + message.id + '"><i class="fas fa-check"></i></span>' : ''}
-                </div>
-            `;
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            
-            anime({
-                targets: messageDiv,
-                opacity: [0, 1],
-                translateY: [20, 0],
-                duration: 500,
-                easing: 'easeOutQuad'
-            });
-        }
-
         socket.on('new_message', (data) => {
-            if (data.recipient_id == {{ current_user.id }}) {
-                addMessage(data.message);
+            if (data.recipient_id == {{ current_user.id }} || data.sender_id == {{ current_user.id }}) {
+                addMessage(data);
+                if (data.sender_id != {{ current_user.id }}) {
+                    socket.emit('message_read', { message_id: data.id });
+                }
+            }
+        });
+
+        socket.on('message_status_update', (data) => {
+            const statusIndicator = document.querySelector(`.status-indicator[data-message-id="${data.message_id}"]`);
+            if (statusIndicator) {
+                if (data.status === 'read') {
+                    statusIndicator.innerHTML = '<i class="fas fa-check-double text-blue-500"></i>';
+                } else if (data.status === 'delivered') {
+                    statusIndicator.innerHTML = '<i class="fas fa-check-double"></i>';
+                }
             }
         });
 
@@ -287,17 +314,6 @@
             }
         });
 
-        socket.on('message_status_update', (data) => {
-            const statusIndicator = document.querySelector('.status-indicator[data-message-id="${data.message_id}"]');
-            if (statusIndicator) {
-                if (data.status === 'delivered') {
-                    statusIndicator.innerHTML = '<i class="fas fa-check-double"></i>';
-                } else if (data.status === 'read') {
-                    statusIndicator.innerHTML = '<i class="fas fa-check-double text-blue-500"></i>';
-                }
-            }
-        });
-
         socket.on('ai_reply_suggestion', (data) => {
             aiSuggestionContent.textContent = data.suggestion;
             aiReplySuggestion.classList.remove('hidden');
@@ -306,7 +322,6 @@
         function useAISuggestion() {
             messageInput.value = aiSuggestionContent.textContent;
             aiReplySuggestion.classList.add('hidden');
-            messageInput.focus();
         }
 
         function useConversationStarter(starter) {
@@ -314,7 +329,7 @@
             messageInput.focus();
         }
 
-        // Scroll to bottom of chat messages on load
+        // Initial scroll to bottom of chat
         chatMessages.scrollTop = chatMessages.scrollHeight;
     </script>
 </body>

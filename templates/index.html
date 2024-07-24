@@ -20,6 +20,7 @@
         }
         .like-button i {
             transition: color 0.3s ease, transform 0.3s ease;
+            color: gray;
         }
         .like-button:hover i {
             transform: scale(1.2);
@@ -111,10 +112,14 @@
                     </div>
                     <p class="mb-2">{{ post.content }}</p>
                     {% if post.media_url %}
-                        <img src="{{ post.media_url }}" alt="Post Media" class="w-full rounded-lg mb-2">
+                        {% if post.media_url.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+                            <img src="{{ url_for('static', filename='uploads/' + post.media_url) }}" alt="Post Media" class="w-full rounded-lg mb-2">
+                        {% elif post.media_url.lower().endswith(('.mp4', '.webm', '.ogg')) %}
+                            <video src="{{ url_for('static', filename='uploads/' + post.media_url) }}" controls class="w-full rounded-lg mb-2"></video>
+                        {% endif %}
                     {% endif %}
                     <div class="flex items-center">
-                        <button class="like-button mr-4 flex items-center" data-post-id="{{ post.id }}">
+                        <button class="like-button mr-4 flex items-center {% if current_user in post.likes %}liked{% endif %}" data-post-id="{{ post.id }}">
                             <i class="fas fa-heart mr-1"></i>
                             <span class="like-count">{{ post.likes.count() }}</span> Likes
                         </button>
@@ -146,69 +151,97 @@
             {% endfor %}
         </div>
     </div>
-
-    <!-- Footer -->
-    <footer class="gradient-bg p-4 mt-8 text-white">
-        <div class="container mx-auto text-center">
+    <footer class="bg-gray-200 p-4 mt-8">
+        <div class="container mx-auto text-center text-gray-600">
             &copy; 2024 LuNa SocialApp. All rights reserved.
         </div>
     </footer>
 
-    <!-- JavaScript -->
+    <!-- JavaScript for Like and Follow Functionality -->
     <script>
-        function deletePost(postId) {
-            fetch(`/delete_post/${postId}`, { method: 'POST' })
-                .then(response => {
-                    if (response.ok) {
-                        document.getElementById(`post-${postId}`).remove();
-                    }
+        document.addEventListener('DOMContentLoaded', function () {
+            // Handle Follow/Unfollow Button Click
+            document.querySelectorAll('.follow-button').forEach(button => {
+                button.addEventListener('click', function () {
+                    const username = this.getAttribute('onclick').match(/'([^']+)'/)[1];
+                    fetch(`/follow/${username}`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.following) {
+                                button.innerHTML = `<i class="fas fa-user-minus mr-2"></i>Unfollow`;
+                                button.classList.add('bg-red-500');
+                                button.classList.remove('bg-blue-500');
+                            } else {
+                                button.innerHTML = `<i class="fas fa-user-plus mr-2"></i>Follow`;
+                                button.classList.add('bg-blue-500');
+                                button.classList.remove('bg-red-500');
+                            }
+                        });
                 });
-        }
+            });
 
-        function deleteComment(commentId, postId) {
-            fetch(`/delete_comment/${commentId}`, { method: 'POST' })
-                .then(response => {
-                    if (response.ok) {
-                        document.getElementById(`comment-${commentId}`).remove();
-                    }
+            // Handle Like Button Click
+            document.querySelectorAll('.like-button').forEach(button => {
+                button.addEventListener('click', function () {
+                    const postId = this.getAttribute('data-post-id');
+                    fetch(`/like/${postId}`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            const likeCount = this.querySelector('.like-count');
+                            if (data.liked) {
+                                this.classList.add('liked');
+                                likeCount.textContent = data.likes;
+                            } else {
+                                this.classList.remove('liked');
+                                likeCount.textContent = data.likes;
+                            }
+                        });
                 });
-        }
+            });
 
-        function toggleComments(postId) {
-            document.getElementById(`comments-${postId}`).classList.toggle('hidden');
-        }
+            // Handle Delete Post Button Click
+            window.deletePost = function (postId) {
+                if (confirm('Are you sure you want to delete this post?')) {
+                    fetch(`/delete_post/${postId}`, { method: 'DELETE' })
+                        .then(() => {
+                            document.getElementById(`post-${postId}`).remove();
+                        });
+                }
+            };
 
-        function toggleFollow(username) {
-            fetch(`/toggle_follow/${username}`, { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    const button = document.querySelector('.follow-button');
-                    if (data.following) {
-                        button.classList.remove('bg-blue-500');
-                        button.classList.add('bg-red-500');
-                        button.innerHTML = '<i class="fas fa-user-minus mr-2"></i>Unfollow';
-                    } else {
-                        button.classList.remove('bg-red-500');
-                        button.classList.add('bg-blue-500');
-                        button.innerHTML = '<i class="fas fa-user-plus mr-2"></i>Follow';
-                    }
-                });
-        }
+            // Handle Delete Comment Button Click
+            window.deleteComment = function (commentId, postId) {
+                if (confirm('Are you sure you want to delete this comment?')) {
+                    fetch(`/delete_comment/${commentId}`, { method: 'DELETE' })
+                        .then(() => {
+                            document.getElementById(`comment-${commentId}`).remove();
+                        });
+                }
+            };
 
-        document.querySelectorAll('.like-button').forEach(button => {
-            button.addEventListener('click', () => {
-                const postId = button.getAttribute('data-post-id');
-                fetch(`/like_post/${postId}`, { method: 'POST' })
+            // Handle Toggle Comments Button Click
+            window.toggleComments = function (postId) {
+                const commentsSection = document.getElementById(`comments-${postId}`);
+                commentsSection.classList.toggle('hidden');
+            };
+
+            // Handle Follow Button
+            window.toggleFollow = function (username) {
+                fetch(`/follow/${username}`, { method: 'POST' })
                     .then(response => response.json())
                     .then(data => {
-                        if (data.liked) {
-                            button.classList.add('liked');
+                        const button = document.querySelector(`.follow-button[data-username="${username}"]`);
+                        if (data.following) {
+                            button.innerHTML = `<i class="fas fa-user-minus mr-2"></i>Unfollow`;
+                            button.classList.add('bg-red-500');
+                            button.classList.remove('bg-blue-500');
                         } else {
-                            button.classList.remove('liked');
+                            button.innerHTML = `<i class="fas fa-user-plus mr-2"></i>Follow`;
+                            button.classList.add('bg-blue-500');
+                            button.classList.remove('bg-red-500');
                         }
-                        button.querySelector('.like-count').textContent = data.like_count;
                     });
-            });
+            };
         });
     </script>
 </body>
