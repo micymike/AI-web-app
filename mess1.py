@@ -1,237 +1,294 @@
+import json
+import re
 import os
-from flask import jsonify
-from flask_socketio import emit
-from datetime import datetime
-from models import db, Message, User
-from sqlalchemy import or_
+import logging
+from flask import Flask, abort, render_template, request, jsonify, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask import Blueprint
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import google.generativeai as genai
 from dotenv import load_dotenv
-import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
+from prof import profile as profile_blueprint
+import datetime
+from mess import get_conversation_summary, init_mess, get_messages, send_message_helper, get_user_conversations, search_messages, suggest_conversation_starters
+from flask_migrate import Migrate
+from sqlalchemy.exc import SQLAlchemyError
+from models import Comment, Follow, Like, Message, Notification, User, Post, db
 
-# Load environment variables
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Initialize Flask app
 load_dotenv()
+app = Flask(__name__)
 
-# Initialize Gemini AI
+# Configure your database URI
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///social_media.db'  # Change this as needed
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.urandom(24).hex()
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max-limit
+
+# Initialize the SQLAlchemy instance with the Flask app
+db.init_app(app)
+
+# Initialize Flask-Migrate
+migrate = Migrate(app, db)
+
+# Import and register blueprints here
+app.register_blueprint(profile_blueprint)
+
+# Initialize LoginManager
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+# Initialize SocketIO
+socketio = SocketIO(app)
+
+# Configure the Gemini model
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
 
-# Initialize NLTK for sentiment analysis
-nltk.download('vader_lexicon')
-sia = SentimentIntensityAnalyzer()
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
-def init_mess(socketio):
-    @socketio.on('connect')
-    def handle_connect():
-        print('Client connected')
+def is_valid_input(text):
+    return text and len(text.strip()) > 0
 
-    @socketio.on('disconnect')
-    def handle_disconnect():
-        print('Client disconnected')
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif', 'mp4'}
 
-    @socketio.on('send_message')
-    def handle_send_message(data):
-        sender_id = data['sender_id']
-        recipient_id = data['recipient_id']
-        content = data['content']
-        media_url = data.get('media_url')
+@app.route('/')
+@login_required
+def index():
+    followed_users = [follow.followed_id for follow in current_user.following]
+    posts = Post.query.filter(Post.user_id.in_(followed_users + [current_user.id])).order_by(Post.timestamp.desc()).all()
+    return render_template('index.html', posts=posts)
 
-        # Check message quality and community guidelines
-        moderation_result = moderate_content(content)
-        if not moderation_result['appropriate']:
-            emit('message_rejected', {
-                'reason': moderation_result['reason'],
-                'sender_id': sender_id
-            }, room=sender_id)
-            return
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form['username']).first()
+        if user and check_password_hash(user.password_hash, request.form['password']):
+            login_user(user)
+            return redirect(url_for('index'))
+        flash('Invalid username or password')
+    return render_template('login.html')
 
-        new_message = Message(
-            sender_id=sender_id,
-            recipient_id=recipient_id,
-            content=content,
-            media_url=media_url,
-            timestamp=datetime.utcnow(),
-            sentiment=analyze_sentiment(content)
-        )
-        db.session.add(new_message)
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        hashed_password = generate_password_hash(request.form['password'])
+        new_user = User(username=request.form['username'], email=request.form['email'], password_hash=hashed_password)
+        db.session.add(new_user)
         db.session.commit()
+        flash('Account created successfully')
+        return redirect(url_for('login'))
+    return render_template('register.html')
 
-        message_data = {
-            'id': new_message.id,
-            'sender_id': new_message.sender_id,
-            'recipient_id': new_message.recipient_id,
-            'content': new_message.content,
-            'media_url': new_message.media_url,
-            'timestamp': new_message.timestamp.isoformat(),
-            'read': False,
-            'delivered': True,
-            'sentiment': new_message.sentiment
-        }
+@app.route('/profile/<username>')
+@login_required
+def profile(username):
+    user = User.query.filter_by(username=username).first_or_404()
+    posts = Post.query.filter_by(user_id=user.id).order_by(Post.timestamp.desc()).all()
+    return render_template('profile.html', user=user, posts=posts)
 
-        emit('new_message', message_data, room=recipient_id)
-        emit('new_message', message_data, room=sender_id)
+@app.route('/edit_profile', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    if request.method == 'POST':
+        current_user.bio = request.form['bio']
+        if 'profile_picture' in request.files:
+            file = request.files['profile_picture']
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                current_user.profile_picture = filename
+        db.session.commit()
+        flash('Profile updated successfully')
+        return redirect(url_for('profile', username=current_user.username))
+    return render_template('edit_profile.html')
 
-        # Generate AI response suggestion
-        ai_suggestion = generate_ai_reply(content)
-        emit('ai_reply_suggestion', {
-            'suggestion': ai_suggestion,
-            'recipient_id': recipient_id
-        }, room=recipient_id)
-
-    # ... (keep other existing Socket.IO event handlers)
-    @socketio.on('message_read')
-    def handle_message_read(data):
-        message_id = data['message_id']
-        message = Message.query.get(message_id)
-        if message:
-            message.read = True
-            db.session.commit()
-            emit('message_status_update', {'message_id': message_id, 'read': True}, room=message.sender_id)
-
-    @socketio.on('typing')
-    def handle_typing(data):
-        sender_id = data['sender_id']
-        recipient_id = data['recipient_id']
-        emit('typing', {'sender_id': sender_id}, room=recipient_id)
-
-    @socketio.on('stop_typing')
-    def handle_stop_typing(data):
-        sender_id = data['sender_id']
-        recipient_id = data['recipient_id']
-        emit('stop_typing', {'sender_id': sender_id}, room=recipient_id)
-
-def moderate_content(content):
-    prompt = f"""
-    Please analyze the following message and determine if it follows community guidelines. 
-    The message should not contain hate speech, explicit content, or violate user privacy.
-    Respond with a JSON object containing 'appropriate' (boolean) and 'reason' (string) fields.
-    
-    Message: "{content}"
-    """
-    
-    response = model.generate_content(prompt)
-    result = eval(response.text)  # Convert the response to a Python dictionary
-    return result
-
-def analyze_sentiment(content):
-    sentiment_scores = sia.polarity_scores(content)
-    compound_score = sentiment_scores['compound']
-    
-    if compound_score >= 0.05:
-        return 'positive'
-    elif compound_score <= -0.05:
-        return 'negative'
-    else:
-        return 'neutral'
-
-def generate_ai_reply(content):
-    prompt = f"""
-    Given the following message, suggest a thoughtful and engaging reply:
-    "{content}"
-    Keep the reply concise and natural-sounding.
-    """
-    
-    response = model.generate_content(prompt)
-    return response.text
-
-def get_messages(current_user_id, recipient_id, page=1, per_page=20):
-    messages = Message.query.filter(
-        or_(
-            (Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id),
-            (Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id)
-        )
-    ).order_by(Message.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
-
-    return messages
-
-def send_message(sender_id, recipient_id, content, media_url=None):
-    moderation_result = moderate_content(content)
-    if not moderation_result['appropriate']:
-        return None, moderation_result['reason']
-
-    sentiment = analyze_sentiment(content)
-    new_message = Message(
-        sender_id=sender_id,
-        recipient_id=recipient_id,
-        content=content,
-        media_url=media_url,
-        timestamp=datetime.utcnow(),
-        sentiment=sentiment
-    )
-    db.session.add(new_message)
+@app.route('/follow/<username>')
+@login_required
+def follow(username):
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        flash('User not found.')
+        return redirect(url_for('index'))
+    if user == current_user:
+        flash('You cannot follow yourself!')
+        return redirect(url_for('profile', username=username))
+    current_user.following.append(Follow(followed=user))
     db.session.commit()
+    flash(f'You are now following {username}!')
+    return redirect(url_for('profile', username=username))
 
-    return new_message, None
+@app.route('/unfollow/<username>')
+@login_required
+def unfollow(username):
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        flash('User not found.')
+        return redirect(url_for('index'))
+    if user == current_user:
+        flash('You cannot unfollow yourself!')
+        return redirect(url_for('profile', username=username))
+    follow = current_user.following.filter_by(followed_id=user.id).first()
+    if follow:
+        db.session.delete(follow)
+        db.session.commit()
+        flash(f'You have unfollowed {username}.')
+    return redirect(url_for('profile', username=username'))
 
-def get_user_conversations(user_id):
-    subquery = db.session.query(
-        db.func.max(Message.id).label('max_id')
-    ).filter(
-        or_(Message.sender_id == user_id, Message.recipient_id == user_id)
-    ).group_by(
-        db.func.least(Message.sender_id, Message.recipient_id),
-        db.func.greatest(Message.sender_id, Message.recipient_id)
-    ).subquery()
+@app.route('/post', methods=['GET', 'POST'])
+@login_required
+def post():
+    if request.method == 'POST':
+        user_input = request.form.get('content', '').strip()
 
-    latest_messages = db.session.query(Message).join(
-        subquery, Message.id == subquery.c.max_id
-    ).order_by(Message.timestamp.desc()).all()
+        if not user_input:
+            flash('Post content cannot be empty!', 'warning')
+            return redirect(url_for('index'))
 
-    conversations = []
-    for message in latest_messages:
-        other_user_id = message.recipient_id if message.sender_id == user_id else message.sender_id
-        other_user = User.query.get(other_user_id)
-        conversations.append({
-            'user': other_user,
-            'last_message': message
-        })
+        # Use Gemini model to check for community guideline violations
+        prompt = f"""
+        Analyze the following text for any violations of community guidelines. 
+        If violations are found, provide an explanation and suggest alternative wordings.
+        Text to analyze: "{user_input}"
+        
+        Respond in the following JSON format:
+        {{
+            "violates_guidelines": boolean,
+            "explanation": "string",
+            "suggestions": ["string"]
+        }}
+        """
 
-    return conversations
+        try:
+            response = model.generate(prompt=prompt)
+            response_text = response.get('text', '').strip()
+            logger.debug(f"Raw Gemini response: {response_text}")
+            
+            # Extract JSON from the response
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                response_data = json.loads(json_match.group(0))
+            else:
+                raise ValueError("No valid JSON found in the response")
+            
+            logger.debug(f"Parsed response data: {response_data}")
 
-def search_messages(current_user_id, recipient_id, query):
-    messages = Message.query.filter(
-        or_(
-            (Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id),
-            (Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id)
-        ),
-        Message.content.ilike(f'%{query}%')
-    ).order_by(Message.timestamp.desc()).all()
+            if response_data.get('violates_guidelines', False):
+                explanation = response_data.get('explanation', 'No explanation provided.')
+                suggestions = response_data.get('suggestions', [])
 
-    return messages
+                flash(f"Warning: {explanation}", 'warning')
+                if suggestions:
+                    flash("Suggested Alternatives:", 'info')
+                    for suggestion in suggestions:
+                        flash(f"- {suggestion}", 'info')
+                return render_template('index.html', original_content=user_input)
 
-def get_conversation_summary(user_id, other_user_id):
-    messages = Message.query.filter(
-        or_(
-            (Message.sender_id == user_id) & (Message.recipient_id == other_user_id),
-            (Message.sender_id == other_user_id) & (Message.recipient_id == user_id)
-        )
-    ).order_by(Message.timestamp.desc()).limit(10).all()
+            # If we've reached this point, the content is okay to post
+            new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
+            
+            if 'media' in request.files:
+                file = request.files['media']
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    file.save(os.path.join('static/uploads', filename))
+                    new_post.media_url = filename
+            
+            db.session.add(new_post)
+            db.session.commit()
+            flash('Your post has been created!', 'success')
 
-    conversation_text = "\n".join([f"{msg.sender_id}: {msg.content}" for msg in reversed(messages)])
-    
-    prompt = f"""
-    Summarize the following conversation between two users:
-    
-    {conversation_text}
-    
-    Provide a brief summary of the main topics discussed and the overall tone of the conversation.
-    """
+        except Exception as e:
+            logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
+            flash(f'An error occurred while processing your post. Please try again.', 'danger')
+        
+        return redirect(url_for('index'))
 
-    response = model.generate_content(prompt)
-    return response.text
+    return render_template('index.html')
 
-def suggest_conversation_starters(user_id, other_user_id):
-    user = User.query.get(user_id)
-    other_user = User.query.get(other_user_id)
+@app.route('/messages/', defaults={'recipient_id': None})
+@app.route('/messages/<int:recipient_id>', methods=['GET', 'POST'])
+@login_required
+def messages(recipient_id):
+    if recipient_id is None:
+        return redirect(url_for('conversations'))  # Assuming you have a 'conversations' route
 
-    prompt = f"""
-    Suggest 3 conversation starters for two users based on their profiles:
-    
-    User 1: {user.bio}
-    User 2: {other_user.bio}
-    
-    Provide engaging and relevant conversation starters that could help these users connect.
-    """
+    if request.method == 'POST':
+        content = request.form['content']
+        media_url = request.form.get('media_url')
+        message, error = send_message_helper(current_user.id, recipient_id, content, media_url)
+        if error:
+            return jsonify({'status': 'error', 'message': error})
+        return jsonify({'status': 'success', 'message': message.to_dict()})
+    else:
+        messages = get_messages(current_user.id, recipient_id)
+        summary = get_conversation_summary(current_user.id, recipient_id)
+        starters = suggest_conversation_starters(current_user.id, recipient_id)
+        recipient = User.query.get(recipient_id)  # Fetch the recipient user
+        return render_template('messages.html', messages=messages, summary=summary, starters=starters, recipient=recipient)
 
-    response = model.generate_content(prompt)
-    return response.text.split('\n')
+def get_all_users(current_user_id):
+    return User.query.filter(User.id != current_user_id).all()
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
+    return render_template('notifications.html', notifications=notifications)
+
+@app.route('/notifications/mark_as_read/<int:notification_id>', methods=['POST'])
+@login_required
+def mark_as_read(notification_id):
+    notification = Notification.query.get(notification_id)
+    if notification and notification.user_id == current_user.id:
+        notification.read = True
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    return jsonify({'status': 'error', 'message': 'Notification not found or access denied'})
+
+@app.route('/search', methods=['GET'])
+@login_required
+def search():
+    query = request.args.get('query', '')
+    if query:
+        search_results = search_messages(query, current_user.id)
+        return render_template('search_results.html', results=search_results)
+    return redirect(url_for('index'))
+
+# SocketIO events
+@socketio.on('join')
+def on_join(data):
+    room = data['room']
+    join_room(room)
+    emit('status', {'msg': f"{current_user.username} has entered the room."}, room=room)
+
+@socketio.on('leave')
+def on_leave(data):
+    room = data['room']
+    leave_room(room)
+    emit('status', {'msg': f"{current_user.username} has left the room."}, room=room)
+
+@socketio.on('message')
+def handle_message(data):
+    room = data['room']
+    emit('message', {'msg': data['msg'], 'username': current_user.username}, room=room)
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)

@@ -212,12 +212,12 @@ def post():
                 explanation = response_data.get('explanation', 'No explanation provided.')
                 suggestions = response_data.get('suggestions', [])
 
-                flash(f"Warning: {explanation}", 'warning')
-                if suggestions:
-                    flash("Suggested Alternatives:", 'info')
-                    for suggestion in suggestions:
-                        flash(f"- {suggestion}", 'info')
-                return render_template('index.html', original_content=user_input)
+                ai_response = {
+                    'explanation': explanation,
+                    'suggestions': suggestions
+                }
+
+                return render_template('index.html', original_content=user_input, ai_response=ai_response)
 
             # If we've reached this point, the content is okay to post
             new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
@@ -239,8 +239,7 @@ def post():
         
         return redirect(url_for('index'))
 
-    return render_template('index.html')
-
+    return render_template('index.html', original_content=user_input, ai_response=ai_response)
 
     
 @login_required
