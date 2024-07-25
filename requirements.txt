@@ -10,3 +10,4 @@ nltk
 Werkzeug
 gunicorn
 emojis
+SocketIO
