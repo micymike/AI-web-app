@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Messages - LuNa</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='Luna-icon.png') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/emoji-mart@latest/css/emoji-mart.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
@@ -53,8 +54,7 @@
     </nav>
     
     <div class="container mx-auto mt-8 flex flex-col lg:flex-row">
-        <!-- User list -->
- <!-- In messages.html -->
+
 <div class="w-full lg:w-1/4 bg-white rounded-lg shadow-md p-4 mb-4 lg:mb-0 lg:mr-4">
     <h2 class="text-xl font-bold mb-4">Conversations</h2>
     <div class="space-y-2">
@@ -68,6 +68,7 @@
         </a>
         {% endfor %}
     </div>
+    <button class="border-transparent bg-purple-600 w-32 rounded-lg"><a href="https://micymike-michaelmosesbot.hf.space"><i class="fa-solid fa-robot"></i>Chat with AI</a></button>
 </div>
 
 <style>
