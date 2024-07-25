@@ -52,24 +52,33 @@
         </div>
     </nav>
     
-    <div class="container mx-auto mt-8 flex">
+    <div class="container mx-auto mt-8 flex flex-col lg:flex-row">
         <!-- User list -->
-        <div class="w-1/4 bg-white rounded-lg shadow-md p-4 mr-4">
-            <h2 class="text-xl font-bold mb-4">Conversations</h2>
-            <ul id="user-list" class="space-y-2">
-                {% for user in users %}
-                    <li>
-                        <a href="{{ url_for('messages', recipient_id=user.id) }}" class="flex items-center p-2 hover:bg-gray-100 rounded-lg transition duration-300">
-                            <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full mr-3">
-                            <span>{{ user.username }}</span>
-                        </a>
-                    </li>
-                {% endfor %}
-            </ul>
-        </div>
+ <!-- In messages.html -->
+<div class="w-full lg:w-1/4 bg-white rounded-lg shadow-md p-4 mb-4 lg:mb-0 lg:mr-4">
+    <h2 class="text-xl font-bold mb-4">Conversations</h2>
+    <div class="space-y-2">
+        {% for user in users %}
+        <a href="{{ url_for('messages', recipient_id=user.id) }}" class="flex items-center p-2 hover:bg-gray-100 rounded-lg transition duration-300">
+            <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full mr-3 object-cover">
+            <div>
+                <p class="font-semibold">{{ user.username }}</p>
+                <p class="text-sm text-gray-500">{{ user.status }}</p>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .user-list {
+        max-height: calc(100vh - 200px);
+        overflow-y: auto;
+    }
+</style>
         
         <!-- Chat window -->
-        <div class="w-3/4 bg-white rounded-lg shadow-md p-4">
+        <div class="w-full lg:w-3/4 bg-white rounded-lg shadow-md p-4">
             {% if recipient %}
                 <h2 class="text-xl font-bold mb-4 flex items-center">
                     <img src="{{ url_for('static', filename='uploads/' + recipient.profile_picture) }}" alt="{{ recipient.username }}" class="w-10 h-10 rounded-full mr-3">
@@ -77,11 +86,6 @@
                 </h2>
                 <div class="mb-4">
                     <input type="text" id="search-input" class="w-full border rounded-lg p-2" placeholder="Search messages...">
-                </div>
-                <!-- AI-generated conversation summary -->
-                <div id="conversation-summary" class="mb-4 p-4 bg-gray-100 rounded-lg">
-                    <h3 class="font-bold mb-2">Conversation Summary</h3>
-                    <p id="summary-content">{{ summary }}</p>
                 </div>
                 <!-- AI-suggested conversation starters -->
                 <div id="conversation-starters" class="mb-4">
@@ -163,174 +167,164 @@
     </div>
 
     <script>
-        const socket = io();
-        const chatMessages = document.getElementById('chat-messages');
-        const messageForm = document.getElementById('message-form');
-        const messageInput = document.getElementById('message-input');
-        const searchInput = document.getElementById('search-input');
-        const typingIndicator = document.getElementById('typing-indicator');
-        const emojiButton = document.getElementById('emoji-button');
-        const fileInput = document.getElementById('file-input');
-        const aiReplySuggestion = document.getElementById('ai-reply-suggestion');
-        const aiSuggestionContent = document.getElementById('ai-suggestion-content');
-        let typingTimeout;
+      // messages.js
 
-        function addMessage(message) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `mb-4 ${message.sender_id == {{ current_user.id }} ? 'text-right' : ''}`;
-            let mediaHtml = '';
-            if (message.media_url) {
-                mediaHtml = `<img src="${message.media_url}" alt="Shared media" class="max-w-full h-auto rounded-lg mb-2">`;
-            }
-            let sentimentIcon = '';
-            if (message.sentiment === 'positive') {
-                sentimentIcon = '<i class="fas fa-smile text-green-500"></i>';
-            } else if (message.sentiment === 'negative') {
-                sentimentIcon = '<i class="fas fa-frown text-red-500"></i>';
-            } else {
-                sentimentIcon = '<i class="fas fa-meh text-gray-500"></i>';
-            }
-            
-            const isCurrentUser = message.sender_id == {{ current_user.id }};
-            const profilePicture = isCurrentUser ? "{{ current_user.profile_picture }}" : "{{ recipient.profile_picture }}";
-            const username = isCurrentUser ? "You" : "{{ recipient.username }}";
-            
-            messageDiv.innerHTML = `
-                <div class="inline-block message-bubble ${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
-                    <div class="flex items-center mb-2">
-                        <img src="{{ url_for('static', filename='uploads/') }}${profilePicture}" alt="${username}" class="w-6 h-6 rounded-full mr-2">
-                        <span class="font-bold">${username}</span>
-                    </div>
-                    ${mediaHtml}
-                    ${message.content}
-                    <span class="ml-2 text-xs">${sentimentIcon}</span>
+document.addEventListener('DOMContentLoaded', function() {
+    const socket = io();
+    const messageForm = document.querySelector('#chat-form');
+    const messageInput = document.querySelector('#message-input');
+    const chatMessages = document.querySelector('#chat-messages');
+    const typingIndicator = document.querySelector('#typing-indicator');
+    const aiSuggestion = document.querySelector('#ai-reply-suggestion');
+
+    const currentUserId = messageForm.dataset.currentUserId;
+    const recipientId = messageForm.dataset.recipientId;
+    const currentUserProfilePic = document.querySelector('#current-user-profile-pic').src;
+    const recipientProfilePic = document.querySelector('#recipient-profile-pic').src;
+    const recipientUsername = document.querySelector('#recipient-username').textContent;
+
+    let typingTimeout;
+
+    // Connect to WebSocket
+    socket.on('connect', function() {
+        console.log('Connected to WebSocket');
+    });
+
+    // Handle incoming messages
+    socket.on('new_message', function(data) {
+        appendMessage(data);
+        scrollToBottom();
+    });
+
+    // Handle typing indicator
+    socket.on('typing', function(data) {
+        if (data.sender_id === recipientId) {
+            typingIndicator.classList.remove('hidden');
+        }
+    });
+
+    socket.on('stop_typing', function(data) {
+        if (data.sender_id === recipientId) {
+            typingIndicator.classList.add('hidden');
+        }
+    });
+
+    // Handle AI reply suggestions
+    socket.on('ai_reply_suggestion', function(data) {
+        aiSuggestion.innerHTML = `
+            <p class="font-bold">AI Suggested Reply:</p>
+            <p>${data.suggestion}</p>
+            <button onclick="useSuggestion('${data.suggestion}')" class="bg-blue-500 text-white px-4 py-2 rounded mt-2">Use Suggestion</button>
+        `;
+        aiSuggestion.classList.remove('hidden');
+    });
+
+    // Handle moderation warnings
+    socket.on('message_warning', function(data) {
+        showWarning(data.reason, data.alternatives);
+    });
+
+    // Send message
+    messageForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        sendMessage();
+    });
+
+    // Handle typing
+    messageInput.addEventListener('input', function() {
+        socket.emit('typing', { sender_id: currentUserId, recipient_id: recipientId });
+        
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('stop_typing', { sender_id: currentUserId, recipient_id: recipientId });
+        }, 3000);
+    });
+
+    function sendMessage() {
+        const content = messageInput.value.trim();
+        if (content) {
+            socket.emit('send_message', {
+                sender_id: currentUserId,
+                recipient_id: recipientId,
+                content: content
+            });
+            messageInput.value = '';
+            clearTimeout(typingTimeout);
+            socket.emit('stop_typing', { sender_id: currentUserId, recipient_id: recipientId });
+        }
+    }
+
+    function appendMessage(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `mb-4 ${message.sender_id === currentUserId ? 'text-right' : ''}`;
+        messageDiv.innerHTML = `
+            <div class="inline-block message-bubble ${message.sender_id === currentUserId ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
+                <div class="flex items-center mb-2">
+                    <img src="${message.sender_id === currentUserId ? currentUserProfilePic : recipientProfilePic}" class="w-6 h-6 rounded-full mr-2" alt="Profile picture">
+                    <span class="font-bold">${message.sender_id === currentUserId ? 'You' : recipientUsername}</span>
                 </div>
-                <div class="text-xs text-gray-500 mt-1">
-                    ${new Date(message.timestamp).toLocaleString()}
-                    ${isCurrentUser ? '<span class="ml-2 status-indicator" data-message-id="' + message.id + '"><i class="fas fa-check"></i></span>' : ''}
-                </div>
-            `;
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            
-            anime({
-                targets: messageDiv,
-                opacity: [0, 1],
-                translateY: [20, 0],
-                duration: 500,
-                easing: 'easeOutQuad'
-            });
-        }
+                ${message.content}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                ${new Date(message.timestamp).toLocaleString()}
+                ${message.sender_id === currentUserId ? `<span class="ml-2 status-indicator" message-id="${message.id}">Sent</span>` : ''}
+            </div>
+        `;
+        chatMessages.appendChild(messageDiv);
+    }
 
-        if (messageForm) {
-            messageForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const formData = new FormData(messageForm);
-                fetch(messageForm.action, {
-                    method: 'POST',
-                    body: formData
-                }).then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        messageInput.value = '';
-                        fileInput.value = '';
-                        addMessage(data.message);
-                    } else if (data.status === 'error') {
-                        alert('Message rejected: ' + data.message);
-                    }
-                });
-            });
-
-            messageInput.addEventListener('input', () => {
-                socket.emit('typing', { recipient_id: {{ recipient.id if recipient else 'null' }} });
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => {
-                    socket.emit('stop_typing', { recipient_id: {{ recipient.id if recipient else 'null' }} });
-                }, 3000);
-            });
-        }
-
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                const messages = chatMessages.querySelectorAll('.mb-4');
-                messages.forEach(message => {
-                    const content = message.textContent.toLowerCase();
-                    if (content.includes(searchTerm)) {
-                        message.style.display = 'block';
-                    } else {
-                        message.style.display = 'none';
-                    }
-                });
-            });
-        }
-
-        if (emojiButton) {
-            const picker = new EmojiMart.Picker({ 
-                onEmojiSelect: (emoji) => {
-                    messageInput.value += emoji.native;
-                    messageInput.focus();
-                }
-            });
-            
-            emojiButton.addEventListener('click', () => {
-                if (document.body.contains(picker)) {
-                    document.body.removeChild(picker);
-                } else {
-                    document.body.appendChild(picker);
-                }
-            });
-        }
-
-        socket.on('new_message', (data) => {
-            if (data.recipient_id == {{ current_user.id }} || data.sender_id == {{ current_user.id }}) {
-                addMessage(data);
-                if (data.sender_id != {{ current_user.id }}) {
-                    socket.emit('message_read', { message_id: data.id });
-                }
-            }
-        });
-
-        socket.on('message_status_update', (data) => {
-            const statusIndicator = document.querySelector(`.status-indicator[data-message-id="${data.message_id}"]`);
-            if (statusIndicator) {
-                if (data.status === 'read') {
-                    statusIndicator.innerHTML = '<i class="fas fa-check-double text-blue-500"></i>';
-                } else if (data.status === 'delivered') {
-                    statusIndicator.innerHTML = '<i class="fas fa-check-double"></i>';
-                }
-            }
-        });
-
-        socket.on('typing', (data) => {
-            if (data.sender_id != {{ current_user.id }}) {
-                typingIndicator.classList.remove('hidden');
-            }
-        });
-
-        socket.on('stop_typing', (data) => {
-            if (data.sender_id != {{ current_user.id }}) {
-                typingIndicator.classList.add('hidden');
-            }
-        });
-
-        socket.on('ai_reply_suggestion', (data) => {
-            aiSuggestionContent.textContent = data.suggestion;
-            aiReplySuggestion.classList.remove('hidden');
-        });
-
-        function useAISuggestion() {
-            messageInput.value = aiSuggestionContent.textContent;
-            aiReplySuggestion.classList.add('hidden');
-        }
-
-        function useConversationStarter(starter) {
-            messageInput.value = starter;
-            messageInput.focus();
-        }
-
-        // Initial scroll to bottom of chat
+    function scrollToBottom() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function showWarning(reason, alternatives) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4';
+        warningDiv.innerHTML = `
+            <p class="font-bold">Warning: ${reason}</p>
+            <p>Consider using one of these alternatives:</p>
+            <ul class="list-disc pl-5 mt-2">
+                ${alternatives.map(alt => `<li><button class="text-blue-500 hover:underline" onclick="useAlternative('${alt}')">${alt}</button></li>`).join('')}
+            </ul>
+        `;
+        messageForm.prepend(warningDiv);
+    }
+
+    function useAlternative(alternative) {
+        messageInput.value = alternative;
+        document.querySelector('.bg-yellow-100').remove();
+    }
+
+    function useSuggestion(suggestion) {
+        messageInput.value = suggestion;
+        aiSuggestion.classList.add('hidden');
+    }
+
+    // Update message status
+    socket.on('message_status_update', function(data) {
+        const statusIndicator = document.querySelector(`.status-indicator[message-id="${data.message_id}"]`);
+        if (statusIndicator) {
+            statusIndicator.textContent = data.read ? 'Read' : 'Delivered';
+        }
+    });
+
+    // Load initial messages
+    function loadInitialMessages() {
+        fetch(`/api/messages?recipient_id=${recipientId}`)
+            .then(response => response.json())
+            .then(messages => {
+                messages.forEach(appendMessage);
+                scrollToBottom();
+            });
+    }
+
+    loadInitialMessages();
+    scrollToBottom();
+
+    // Make functions globally accessible
+    window.useAlternative = useAlternative;
+    window.useSuggestion = useSuggestion;
+});
     </script>
 </body>
 </html>

@@ -14,7 +14,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from prof import profile as profile_blueprint
 import datetime
-from mess import get_conversation_summary, init_mess, get_messages, send_message_helper, get_user_conversations, search_messages, suggest_conversation_starters
+from mess import  get_available_users, init_mess, get_messages, send_message_helper, get_user_conversations, search_messages, suggest_conversation_starters
 from flask_migrate import Migrate
 from flask_login import current_user
 from datetime import datetime, timedelta, timezone
@@ -316,13 +316,13 @@ def delete_comment(comment_id):
 from flask import render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 
-@app.route('/messages/', defaults={'recipient_id': None})
+@app.route('/messages/', defaults={'recipient_id': None}, methods=['GET', 'POST'])
 @app.route('/messages/<int:recipient_id>', methods=['GET', 'POST'])
 @login_required
 def messages(recipient_id):
     if recipient_id is None:
-        # If no recipient_id is provided, redirect to a default page or show all conversations
-        return redirect(url_for('conversations'))  # Assuming you have a 'conversations' route
+        # Redirect to conversations if no recipient_id is provided
+        return redirect(url_for('conversations'))
 
     if request.method == 'POST':
         content = request.form['content']
@@ -333,23 +333,19 @@ def messages(recipient_id):
         return jsonify({'status': 'success', 'message': message.to_dict()})
     else:
         messages = get_messages(current_user.id, recipient_id)
-        summary = get_conversation_summary(current_user.id, recipient_id)
         starters = suggest_conversation_starters(current_user.id, recipient_id)
         recipient = User.query.get(recipient_id)  # Fetch the recipient user
-        return render_template('messages.html', messages=messages, summary=summary, starters=starters, recipient=recipient)
+        return render_template('messages.html', messages=messages, starters=starters, recipient=recipient)
 def get_all_users(current_user_id):
     return User.query.filter(User.id != current_user_id).all()
-@app.route('/conversations')
+
+@app.route('/conversations', methods=['GET'])
 @login_required
 def conversations():
     user_conversations = get_user_conversations(current_user.id)
     all_users = get_all_users(current_user.id)
     return render_template('conversations.html', conversations=user_conversations, all_users=all_users)
-@app.route('/api/conversation_summary/<int:other_user_id>')
-@login_required
-def api_conversation_summary(other_user_id):
-    summary = get_conversation_summary(current_user.id, other_user_id)
-    return jsonify({'summary': summary})
+
 
 @app.route('/api/conversation_starters/<int:other_user_id>')
 @login_required

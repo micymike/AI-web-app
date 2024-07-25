@@ -9,3 +9,4 @@ SQLAlchemy
 nltk
 Werkzeug
 gunicorn
+emojis

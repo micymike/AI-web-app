@@ -1,25 +1,22 @@
 import os
-from flask import jsonify
-from flask_socketio import emit
+from flask import Flask, jsonify
+from flask_socketio import SocketIO, emit
 from datetime import datetime
+import emojis
+import socketio
+
 from models import db, Message, User
-from sqlalchemy import or_
+from sqlalchemy import case, or_
 import google.generativeai as genai
 from dotenv import load_dotenv
-import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
 
 # Load environment variables
 load_dotenv()
-
+app = Flask(__name__)
 # Initialize Gemini AI
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
-
-# Initialize NLTK for sentiment analysis
-nltk.download('vader_lexicon')
-sia = SentimentIntensityAnalyzer()
-
+socketio = SocketIO(app)
 def init_mess(socketio):
     @socketio.on('connect')
     def handle_connect():
@@ -29,56 +26,27 @@ def init_mess(socketio):
     def handle_disconnect():
         print('Client disconnected')
 
-    @socketio.on('send_message')
-    def handle_send_message(data):
-        sender_id = data['sender_id']
-        recipient_id = data['recipient_id']
-        content = data['content']
-        media_url = data.get('media_url')
+@socketio.on('send_message')
+def handle_send_message(data):
+    sender_id = data['sender_id']
+    recipient_id = data['recipient_id']
+    content = data['content']
+    media_url = data.get('media_url')
+    
+    ai_suggestion = generate_ai_reply(content)
+    emit('ai_reply_suggestion', {
+        'suggestion': ai_suggestion,
+        'recipient_id': recipient_id
+    }, room=recipient_id)
 
-        # Check message quality and community guidelines
-        moderation_result = moderate_content(content)
-        if not moderation_result['appropriate']:
-            emit('message_rejected', {
-                'reason': moderation_result['reason'],
-                'sender_id': sender_id
-            }, room=sender_id)
-            return
-
-        new_message = Message(
-            sender_id=sender_id,
-            recipient_id=recipient_id,
-            content=content,
-            media_url=media_url,
-            timestamp=datetime.utcnow(),
-            sentiment=analyze_sentiment(content)
-        )
-        db.session.add(new_message)
-        db.session.commit()
-
-        message_data = {
-            'id': new_message.id,
-            'sender_id': new_message.sender_id,
-            'recipient_id': new_message.recipient_id,
-            'content': new_message.content,
-            'media_url': new_message.media_url,
-            'timestamp': new_message.timestamp.isoformat(),
-            'read': False,
-            'delivered': True,
-            'sentiment': new_message.sentiment
-        }
-
-        emit('new_message', message_data, room=recipient_id)
-        emit('new_message', message_data, room=sender_id)
-
-        # Generate AI response suggestion
-        ai_suggestion = generate_ai_reply(content)
-        emit('ai_reply_suggestion', {
-            'suggestion': ai_suggestion,
-            'recipient_id': recipient_id
-        }, room=recipient_id)
-
-    # ... (keep other existing Socket.IO event handlers)
+    moderation_result = moderate_content(content)
+    if not moderation_result['appropriate']:
+        emit('message_warning', {
+            'reason': moderation_result['reason'],
+            'alternatives': moderation_result['alternatives'],
+            'sender_id': sender_id
+        }, room=sender_id)
+        return
     @socketio.on('message_read')
     def handle_message_read(data):
         message_id = data['message_id']
@@ -102,37 +70,33 @@ def init_mess(socketio):
 
 def moderate_content(content):
     prompt = f"""
-    Please analyze the following message and determine if it follows community guidelines. 
+    Analyze the following message and determine if it follows community guidelines. 
     The message should not contain hate speech, explicit content, or violate user privacy.
-    Respond with a JSON object containing 'appropriate' (boolean) and 'reason' (string) fields.
+    If inappropriate, suggest 3 alternative phrasings that convey a similar meaning in a more appropriate way.
+    Response format:
+    {{
+        "appropriate": boolean,
+        "reason": string,
+        "alternatives": [string, string, string]
+    }}
     
     Message: "{content}"
     """
-    
-    response = model.generate_content(prompt)
-    result = eval(response.text)  # Convert the response to a Python dictionary
-    return result
 
-def analyze_sentiment(content):
-    sentiment_scores = sia.polarity_scores(content)
-    compound_score = sentiment_scores['compound']
-    
-    if compound_score >= 0.05:
-        return 'positive'
-    elif compound_score <= -0.05:
-        return 'negative'
-    else:
-        return 'neutral'
+    response = model.generate_content(prompt)
+    result = eval(response.text)
+    return result
 
 def generate_ai_reply(content):
     prompt = f"""
     Given the following message, suggest a thoughtful and engaging reply:
     "{content}"
-    Keep the reply concise and natural-sounding.
+    Keep the reply concise and natural-sounding. Include appropriate emojis to make the message more engaging.
+    Do not use asterisks or any other formatting. The reply should be ready to send as-is.
     """
     
     response = model.generate_content(prompt)
-    return response.text
+    return emojis.emojize(response.text, language='alias')
 
 def get_messages(current_user_id, recipient_id, page=1, per_page=20):
     messages = Message.query.filter(
@@ -149,22 +113,18 @@ def send_message_helper(sender_id, recipient_id, content, media_url=None):
     if not moderation_result['appropriate']:
         return None, moderation_result['reason']
 
-    sentiment = analyze_sentiment(content)
     new_message = Message(
         sender_id=sender_id,
         recipient_id=recipient_id,
         content=content,
         media_url=media_url,
         timestamp=datetime.utcnow(),
-        sentiment=sentiment
+        sentiment='neutral'  # Sentiment analysis removed
     )
     db.session.add(new_message)
     db.session.commit()
 
     return new_message, None
-
-
-from sqlalchemy import func, case
 
 def get_user_conversations(user_id):
     subquery = db.session.query(
@@ -196,6 +156,7 @@ def get_user_conversations(user_id):
         })
 
     return conversations
+
 def search_messages(current_user_id, recipient_id, query):
     messages = Message.query.filter(
         or_(
@@ -206,27 +167,6 @@ def search_messages(current_user_id, recipient_id, query):
     ).order_by(Message.timestamp.desc()).all()
 
     return messages
-
-def get_conversation_summary(user_id, other_user_id):
-    messages = Message.query.filter(
-        or_(
-            (Message.sender_id == user_id) & (Message.recipient_id == other_user_id),
-            (Message.sender_id == other_user_id) & (Message.recipient_id == user_id)
-        )
-    ).order_by(Message.timestamp.desc()).limit(10).all()
-
-    conversation_text = "\n".join([f"{msg.sender_id}: {msg.content}" for msg in reversed(messages)])
-    
-    prompt = f"""
-    Summarize the following conversation between two users:
-    
-    {conversation_text}
-    
-    Provide a brief summary of the main topics discussed and the overall tone of the conversation.
-    """
-
-    response = model.generate_content(prompt)
-    return response.text
 
 def suggest_conversation_starters(user_id, other_user_id):
     user = User.query.get(user_id)
@@ -243,3 +183,9 @@ def suggest_conversation_starters(user_id, other_user_id):
 
     response = model.generate_content(prompt)
     return response.text.split('\n')
+
+# Function to get a list of available users with profile pics
+def get_available_users():
+    users = User.query.all()
+    available_users = [{'id': user.id, 'name': user.name, 'profile_pic': user.profile_pic_url} for user in users]
+    return available_users
