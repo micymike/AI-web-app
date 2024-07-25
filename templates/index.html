@@ -56,9 +56,9 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="flex container mx-auto mt-8">
+    <div class="container mx-auto mt-8 flex flex-col sm:flex-row">
         <!-- Sidebar/Profile Info -->
-        <div class="w-1/4 pr-4">
+        <div class="w-full sm:w-1/4 pr-0 sm:pr-4 mb-4 sm:mb-0">
             <div class="bg-white shadow rounded-lg p-4 mb-4 post-card">
                 <img src="{{ url_for('static', filename='uploads/' + current_user.profile_picture) }}" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500">
                 <h2 class="text-xl font-bold text-center">{{ current_user.username }}</h2>
@@ -78,7 +78,7 @@
         </div>
 
         <!-- Posts Section -->
-        <div class="w-3/4">
+        <div class="w-full sm:w-3/4">
             {% if request.endpoint == 'index' %}
             <form id="create-post-form" action="{{ url_for('post') }}" method="post" enctype="multipart/form-data" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
                 {% if ai_response %}
@@ -95,23 +95,22 @@
                 </div>
                 {% endif %}
                 <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?" required>{{ original_content or '' }}</textarea>
-                <div class="mt-4 flex items-center gap-4">
-                    <label for="media-upload" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition duration-300 flex items-center space-x-2">
+                <div class="mt-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <label for="media-upload" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition duration-300 flex items-center space-x-2 w-full sm:w-auto">
                         <i class="fas fa-image"></i>
                         <span>Add Media</span>
                     </label>
                     <input id="media-upload" type="file" name="media" accept="image/*,video/*" class="hidden">
-                    <a href="https://content-gen-kw4y.onrender.com" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300">
+                    <a href="https://content-gen-kw4y.onrender.com" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300 w-full sm:w-auto">
                         <i class="fa-brands fa-bots"></i>
                         <span>Content Generator</span>
                     </a>
-                    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-300 flex items-center space-x-2">
+                    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-300 flex items-center space-x-2 w-full sm:w-auto">
                         <i class="fas fa-paper-plane"></i>
                         <span>Post</span>
                     </button>
                 </div>
             </form>
-            
             {% endif %}
             
             {% for post in posts %}
