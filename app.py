@@ -5,6 +5,7 @@ from flask import Flask, abort, render_template, request, jsonify, redirect, url
 from flask_sqlalchemy import SQLAlchemy
 from flask import Blueprint
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+import requests
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -156,7 +157,92 @@ def unfollow(username):
         flash(f'You have unfollowed {username}.')
     return redirect(url_for('profile', username=username))
 
-@app.route('/chat', methods=['GET', 'POST'])
+import google.generativeai as genai
+import json
+import logging
+import re
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Configure the Gemini model
+genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+model = genai.GenerativeModel('gemini-pro')
+
+@app.route('/post', methods=['GET', 'POST'])
+@login_required
+def post():
+    if request.method == 'POST':
+        user_input = request.form.get('content', '').strip()
+
+        if not user_input:
+            flash('Post content cannot be empty!', 'warning')
+            return redirect(url_for('index'))
+
+        # Use Gemini model to check for community guideline violations
+        prompt = f"""
+        Analyze the following text for any violations of community guidelines. 
+        If violations are found, provide an explanation and suggest alternative wordings.
+        Text to analyze: "{user_input}"
+        
+        Respond in the following JSON format:
+        {{
+            "violates_guidelines": boolean,
+            "explanation": "string",
+            "suggestions": ["string"]
+        }}
+        """
+
+        try:
+            response = model.generate_content(prompt)
+            logger.debug(f"Raw Gemini response: {response}")
+            logger.debug(f"Gemini response text: {response.text}")
+            
+            # Extract JSON from the response
+            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if json_match:
+                response_data = json.loads(json_match.group(0))
+            else:
+                raise ValueError("No valid JSON found in the response")
+            
+            logger.debug(f"Parsed response data: {response_data}")
+
+            if response_data.get('violates_guidelines', False):
+                explanation = response_data.get('explanation', 'No explanation provided.')
+                suggestions = response_data.get('suggestions', [])
+
+                flash(f"Warning: {explanation}", 'warning')
+                if suggestions:
+                    flash("Suggested Alternatives:", 'info')
+                    for suggestion in suggestions:
+                        flash(f"- {suggestion}", 'info')
+                return render_template('index.html', original_content=user_input)
+
+            # If we've reached this point, the content is okay to post
+            new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
+            
+            if 'media' in request.files:
+                file = request.files['media']
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    file.save(os.path.join('static/uploads', filename))
+                    new_post.media_url = filename
+            
+            db.session.add(new_post)
+            db.session.commit()
+            flash('Your post has been created!', 'success')
+
+        except Exception as e:
+            logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
+            flash(f'An error occurred while processing your post. Please try again.', 'danger')
+        
+        return redirect(url_for('index'))
+
+    return render_template('index.html')
+
+
+    
 @login_required
 def chat():
     if request.method == 'POST':
@@ -167,24 +253,11 @@ def chat():
         # Check if the response suggests the content might be inappropriate
         if "inappropriate" in ai_response.lower() or "offensive" in ai_response.lower():
             flash('Your input might be inappropriate. Please revise and try again.', 'warning')
-            return redirect(url_for('prof.chat'))
+            return redirect(url_for('index'))
 
-        # Save the content as a post
-        new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
-        
-        if 'media' in request.files:
-            file = request.files['media']
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                file.save(os.path.join('static/uploads', filename))
-                new_post.media_url = filename
-        
-        db.session.add(new_post)
-        db.session.commit()
-        flash('Your post has been created!', 'success')
-        return redirect(url_for('prof.user_profile', username=current_user.username))
+        return jsonify({'response': ai_response})
 
-    return render_template('chat.html')
+    return render_template('index.html')
 @app.route('/like/<int:post_id>', methods=['POST'])
 @login_required
 def like_post(post_id):

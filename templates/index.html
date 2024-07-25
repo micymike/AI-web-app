@@ -80,18 +80,18 @@
         <!-- Posts Section -->
         <div class="w-3/4">
             {% if request.endpoint == 'index' %}
-                <form id="create-post-form" action="{{ url_for('chat') }}" method="post" enctype="multipart/form-data" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
-                    <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?" required></textarea>
-                    <div class="mt-2 flex justify-between items-center">
-                        <label for="media-upload" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition duration-300">
-                            <i class="fas fa-image mr-2"></i>Add Media
-                        </label>
-                        <input id="media-upload" type="file" name="media" accept="image/*,video/*" class="hidden">
-                        <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-300">
-                            <i class="fas fa-paper-plane mr-2"></i>Post
-                        </button>
-                    </div>
-                </form>
+            <form id="create-post-form" action="{{ url_for('post') }}" method="post" enctype="multipart/form-data" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
+                <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?" required>{{ original_content or '' }}</textarea>
+                <div class="mt-2 flex justify-between items-center">
+                    <label for="media-upload" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition duration-300">
+                        <i class="fas fa-image mr-2"></i>Add Media
+                    </label>
+                    <input id="media-upload" type="file" name="media" accept="image/*,video/*" class="hidden">
+                    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-300">
+                        <i class="fas fa-paper-plane mr-2"></i>Post
+                    </button>
+                </div>
+            </form>
             {% endif %}
             
             {% for post in posts %}

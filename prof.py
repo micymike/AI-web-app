@@ -31,7 +31,6 @@ def user_profile(username):
 @login_required
 def edit_profile():
     if request.method == 'POST':
-        # Use .get() to avoid KeyError
         username = request.form.get('username')
         email = request.form.get('email')
         bio = request.form.get('bio')
@@ -58,7 +57,6 @@ def edit_profile():
         return redirect(url_for('prof.user_profile', username=current_user.username))
 
     return render_template('edit_profile.html', user=current_user)
-
 
 @profile.route('/follow/<username>', methods=['POST'])
 @login_required
@@ -112,12 +110,10 @@ def chat():
         response = model.generate_content(f"User: {user_input}\nAI Assistant: ")
         ai_response = response.text
         
-        # Check if the response suggests the content might be inappropriate
         if "inappropriate" in ai_response.lower() or "offensive" in ai_response.lower():
             flash('Your input might be inappropriate. Please revise and try again.', 'warning')
             return redirect(url_for('prof.chat'))
 
-        # Save the content as a post
         new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
         
         if 'media' in request.files:
@@ -133,6 +129,7 @@ def chat():
         return redirect(url_for('prof.user_profile', username=current_user.username))
 
     return render_template('chat.html')
+
 @profile.route('/ai_assistant', methods=['GET', 'POST'])
 @login_required
 def ai_assistant():
