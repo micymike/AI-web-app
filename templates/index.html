@@ -80,21 +80,13 @@
         <!-- Posts Section -->
         <div class="w-full sm:w-3/4">
             {% if request.endpoint == 'index' %}
-            <form id="create-post-form" action="{{ url_for('post') }}" method="post" enctype="multipart/form-data" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
-                {% if ai_response %}
-                <div class="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded">
-                    <p class="font-semibold text-yellow-700">{{ ai_response.explanation }}</p>
-                    {% if ai_response.suggestions %}
+            <form id="create-post-form" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
+                <div id="ai-suggestions" class="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded hidden">
+                    <p id="ai-explanation" class="font-semibold text-yellow-700"></p>
                     <p class="mt-2 font-medium text-yellow-600">Suggested alternatives:</p>
-                    <ul class="list-disc list-inside">
-                        {% for suggestion in ai_response.suggestions %}
-                        <li class="text-yellow-700">{{ suggestion }}</li>
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
+                    <ul id="ai-suggestion-list" class="list-disc list-inside"></ul>
                 </div>
-                {% endif %}
-                <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?" required>{{ original_content or '' }}</textarea>
+                <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?" required></textarea>
                 <div class="mt-4 flex flex-col sm:flex-row sm:items-center gap-4">
                     <label for="media-upload" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition duration-300 flex items-center space-x-2 w-full sm:w-auto">
                         <i class="fas fa-image"></i>
@@ -261,6 +253,49 @@
                         }
                     });
             };
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const createPostForm = document.getElementById('create-post-form');
+            const postContent = document.getElementById('post-content');
+            const aiSuggestions = document.getElementById('ai-suggestions');
+            const aiExplanation = document.getElementById('ai-explanation');
+            const aiSuggestionList = document.getElementById('ai-suggestion-list');
+        
+            createPostForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+        
+                fetch('/post', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.violates_guidelines) {
+                        aiExplanation.textContent = data.explanation;
+                        aiSuggestionList.innerHTML = '';
+                        data.suggestions.forEach(suggestion => {
+                            const li = document.createElement('li');
+                            li.className = 'text-yellow-700 cursor-pointer hover:text-yellow-800';
+                            li.textContent = suggestion;
+                            li.onclick = function() {
+                                postContent.value = suggestion;
+                                aiSuggestions.classList.add('hidden');
+                            };
+                            aiSuggestionList.appendChild(li);
+                        });
+                        aiSuggestions.classList.remove('hidden');
+                    } else {
+                        // Post was successful, refresh the page or update the posts list
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while processing your post. Please try again.');
+                });
+            });
         });
     </script>
 </body>

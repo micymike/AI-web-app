@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import os
 from flask import Flask, abort, render_template, request, jsonify, redirect, url_for, flash
@@ -157,12 +158,6 @@ def unfollow(username):
         flash(f'You have unfollowed {username}.')
     return redirect(url_for('profile', username=username))
 
-import google.generativeai as genai
-import json
-import logging
-import re
-
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -177,13 +172,13 @@ def post():
         user_input = request.form.get('content', '').strip()
 
         if not user_input:
-            flash('Post content cannot be empty!', 'warning')
-            return redirect(url_for('index'))
+            return jsonify({'error': 'Post content cannot be empty!'}), 400
 
         # Use Gemini model to check for community guideline violations
         prompt = f"""
         Analyze the following text for any violations of community guidelines. 
-        If violations are found, provide an explanation and suggest alternative wordings.
+        If violations are found, provide a friendly explanation and suggest 3 alternative wordings.
+        Make the suggestions fun and engaging.
         Text to analyze: "{user_input}"
         
         Respond in the following JSON format:
@@ -196,7 +191,6 @@ def post():
 
         try:
             response = model.generate_content(prompt)
-            logger.debug(f"Raw Gemini response: {response}")
             logger.debug(f"Gemini response text: {response.text}")
             
             # Extract JSON from the response
@@ -209,15 +203,11 @@ def post():
             logger.debug(f"Parsed response data: {response_data}")
 
             if response_data.get('violates_guidelines', False):
-                explanation = response_data.get('explanation', 'No explanation provided.')
-                suggestions = response_data.get('suggestions', [])
-
-                ai_response = {
-                    'explanation': explanation,
-                    'suggestions': suggestions
-                }
-
-                return render_template('index.html', original_content=user_input, ai_response=ai_response)
+                return jsonify({
+                    'violates_guidelines': True,
+                    'explanation': response_data.get('explanation', 'No explanation provided.'),
+                    'suggestions': response_data.get('suggestions', [])
+                }), 200
 
             # If we've reached this point, the content is okay to post
             new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
@@ -226,21 +216,40 @@ def post():
                 file = request.files['media']
                 if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
-                    file.save(os.path.join('static/uploads', filename))
+                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                     new_post.media_url = filename
             
             db.session.add(new_post)
             db.session.commit()
-            flash('Your post has been created!', 'success')
+            
+            return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
 
         except Exception as e:
             logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
-            flash(f'An error occurred while processing your post. Please try again.', 'danger')
-        
-        return redirect(url_for('index'))
+            return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
 
-    return render_template('index.html', original_content=user_input, ai_response=ai_response)
+    return render_template('create_post.html')
 
+@app.route('/submit_post', methods=['POST'])
+@login_required
+def submit_post():
+    content = request.form.get('content', '').strip()
+    if not content:
+        return jsonify({'error': 'Post content cannot be empty!'}), 400
+
+    new_post = Post(content=content, user_id=current_user.id, timestamp=datetime.utcnow())
+    
+    if 'media' in request.files:
+        file = request.files['media']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            new_post.media_url = filename
+    
+    db.session.add(new_post)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
     
 @login_required
 def chat():
