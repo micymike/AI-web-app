@@ -293,15 +293,18 @@ def add_comment(post_id):
     create_notification(post.author.id, f'{current_user.username} commented on your post.')
     return redirect(url_for('index'))
 
-@app.route('/delete_post/<int:post_id>', methods=['POST'])
+@app.route('/delete_post/<int:post_id>', methods=['DELETE'])
 @login_required
 def delete_post(post_id):
     post = Post.query.get_or_404(post_id)
     if post.author != current_user:
         return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+    
     db.session.delete(post)
     db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Post deleted successfully'})
+    
+    return jsonify({'status': 'success', 'message': 'Post deleted successfully'}), 200
+
 
 @app.route('/delete_comment/<int:comment_id>', methods=['POST'])
 @login_required
@@ -316,35 +319,29 @@ def delete_comment(comment_id):
 from flask import render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 
-@app.route('/messages/', defaults={'recipient_id': None}, methods=['GET', 'POST'])
-@app.route('/messages/<int:recipient_id>', methods=['GET', 'POST'])
-@login_required
-def messages(recipient_id):
-    if recipient_id is None:
-        # Redirect to conversations if no recipient_id is provided
-        return redirect(url_for('conversations'))
-
-    if request.method == 'POST':
-        content = request.form['content']
-        media_url = request.form.get('media_url')
-        message, error = send_message_helper(current_user.id, recipient_id, content, media_url)
-        if error:
-            return jsonify({'status': 'error', 'message': error})
-        return jsonify({'status': 'success', 'message': message.to_dict()})
-    else:
-        messages = get_messages(current_user.id, recipient_id)
-        starters = suggest_conversation_starters(current_user.id, recipient_id)
-        recipient = User.query.get(recipient_id)  # Fetch the recipient user
-        return render_template('messages.html', messages=messages, starters=starters, recipient=recipient)
-def get_all_users(current_user_id):
-    return User.query.filter(User.id != current_user_id).all()
-
-@app.route('/conversations', methods=['GET'])
+@app.route('/conversations')
 @login_required
 def conversations():
-    user_conversations = get_user_conversations(current_user.id)
-    all_users = get_all_users(current_user.id)
-    return render_template('conversations.html', conversations=user_conversations, all_users=all_users)
+    return redirect(url_for('messages'))
+
+@app.route('/messages/', defaults={'recipient_id': None})
+@app.route('/messages/<int:recipient_id>')
+@login_required
+def messages(recipient_id):
+    available_users = get_available_users()
+    if recipient_id is None and available_users:
+        recipient_id = available_users[0]['id']
+    
+    recipient = User.query.get(recipient_id) if recipient_id else None
+    messages = get_messages(current_user.id, recipient_id) if recipient_id else []
+    starters = suggest_conversation_starters(current_user.id, recipient_id) if recipient_id else []
+    
+    return render_template('messages.html', 
+                           messages=messages, 
+                           starters=starters, 
+                           recipient=recipient, 
+                           available_users=available_users,
+                           current_user=current_user)
 
 
 @app.route('/api/conversation_starters/<int:other_user_id>')
@@ -379,7 +376,8 @@ def send_message_route(recipient_id):
         'timestamp': new_message.timestamp.isoformat()
     }, room=str(recipient_id))
     
-    return jsonify({'status': 'success', 'message': 'Message sent successfully'})
+    # Redirect or return a simple response
+    return redirect(url_for('messages', recipient_id=recipient_id))
 
 def send_message_helper(sender_id, recipient_id, content, media_url=None):
     try:

@@ -166,10 +166,19 @@
                 <p class="text-gray-500 text-center mt-20">Select a user to start chatting</p>
             {% endif %}
         </div>
+        <!-- In messages.html -->
+<div class="w-full lg:w-1/4 bg-white rounded-lg shadow-md p-4 mb-4 lg:mb-0 lg:mr-4">
+    <h2 class="text-xl font-bold mb-4">Online Users</h2>
+    <div id="online-users-list" class="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto">
+        <!-- Online users will be dynamically inserted here -->
+    </div>
+</div>
     </div>
     
     <script>
       
+// messages.js
+
 document.addEventListener('DOMContentLoaded', function() {
     const socket = io();
     const messageForm = document.querySelector('#chat-form');
@@ -177,18 +186,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatMessages = document.querySelector('#chat-messages');
     const typingIndicator = document.querySelector('#typing-indicator');
     const aiSuggestion = document.querySelector('#ai-reply-suggestion');
+    const onlineUsersList = document.querySelector('#online-users-list');
 
     const currentUserId = messageForm.dataset.currentUserId;
-    const recipientId = messageForm.dataset.recipientId;
+    let recipientId = messageForm.dataset.recipientId;
     const currentUserProfilePic = document.querySelector('#current-user-profile-pic').src;
-    const recipientProfilePic = document.querySelector('#recipient-profile-pic').src;
-    const recipientUsername = document.querySelector('#recipient-username').textContent;
+    let recipientProfilePic = document.querySelector('#recipient-profile-pic').src;
+    let recipientUsername = document.querySelector('#recipient-username').textContent;
 
     let typingTimeout;
 
     // Connect to WebSocket
     socket.on('connect', function() {
         console.log('Connected to WebSocket');
+        socket.emit('user_connected', { user_id: currentUserId });
     });
 
     // Handle incoming messages
@@ -225,6 +236,34 @@ document.addEventListener('DOMContentLoaded', function() {
         showWarning(data.reason, data.alternatives);
     });
 
+    function showWarning(reason, alternatives) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4';
+        warningDiv.innerHTML = `
+            <p class="font-bold">Warning: ${reason}</p>
+            <p>Consider using one of these alternatives:</p>
+            <ul class="list-disc pl-5 mt-2">
+                ${alternatives.map(alt => `<li><button class="text-blue-500 hover:underline" onclick="useAlternative('${alt}')">${alt}</button></li>`).join('')}
+            </ul>
+        `;
+        messageForm.prepend(warningDiv);
+    }
+
+    function useAlternative(alternative) {
+        messageInput.value = alternative;
+        document.querySelector('.bg-yellow-100').remove();
+    }
+
+    function useSuggestion(suggestion) {
+        messageInput.value = suggestion;
+        aiSuggestion.classList.add('hidden');
+    }
+
+    // Handle online users list update
+    socket.on('update_online_users', function(data) {
+        updateOnlineUsersList(data.users);
+    });
+
     // Send message
     messageForm.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -234,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle typing
     messageInput.addEventListener('input', function() {
         socket.emit('typing', { sender_id: currentUserId, recipient_id: recipientId });
-        
+
         clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
             socket.emit('stop_typing', { sender_id: currentUserId, recipient_id: recipientId });
@@ -259,12 +298,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const messageDiv = document.createElement('div');
         messageDiv.className = `mb-4 ${message.sender_id === currentUserId ? 'text-right' : ''}`;
         messageDiv.innerHTML = `
-            <div class="inline-block message-bubble ${message.sender_id === currentUserId ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
+            <div class="inline-block message-bubble ${message.sender_id === currentUserId ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md relative">
                 <div class="flex items-center mb-2">
                     <img src="${message.sender_id === currentUserId ? currentUserProfilePic : recipientProfilePic}" class="w-6 h-6 rounded-full mr-2" alt="Profile picture">
                     <span class="font-bold">${message.sender_id === currentUserId ? 'You' : recipientUsername}</span>
                 </div>
-                ${message.content}
+                <p>${message.content}</p>
+                ${message.media_url ? `<img src="${message.media_url}" class="max-w-full mt-2 rounded" alt="Media">` : ''}
+                ${message.sender_id === currentUserId ? `<button class="absolute top-1 right-1 text-red-500 hover:text-red-700" onclick="deleteMessage(${message.id})">🗑️</button>` : ''}
             </div>
             <div class="text-xs text-gray-500 mt-1">
                 ${new Date(message.timestamp).toLocaleString()}
@@ -278,38 +319,56 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    function showWarning(reason, alternatives) {
-        const warningDiv = document.createElement('div');
-        warningDiv.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4';
-        warningDiv.innerHTML = `
-            <p class="font-bold">Warning: ${reason}</p>
-            <p>Consider using one of these alternatives:</p>
-            <ul class="list-disc pl-5 mt-2">
-                ${alternatives.map(alt => `<li><button class="text-blue-500 hover:underline" onclick="useAlternative('${alt}')">${alt}</button></li>`).join('')}
-            </ul>
+    function deleteMessage(messageId) {
+        fetch(`/delete_message/${messageId}`, {
+            method: 'DELETE'
+        }).then(response => {
+            if (response.ok) {
+                const messageDiv = document.querySelector(`.message-bubble[data-message-id="${messageId}"]`);
+                if (messageDiv) {
+                    messageDiv.remove();
+                }
+            }
+        });
+    }
+
+    function updateOnlineUsersList(users) {
+        onlineUsersList.innerHTML = '';
+        users.forEach(user => {
+            if (user.id !== currentUserId) {
+                const userElement = document.createElement('div');
+                userElement.className = 'flex items-center p-2 hover:bg-gray-100 rounded-lg transition duration-300 cursor-pointer';
+                userElement.innerHTML = `
+                    <img src="${user.profile_pic}" alt="${user.username}" class="w-10 h-10 rounded-full mr-3 object-cover">
+                    <span>${user.username}</span>
+                `;
+                userElement.addEventListener('click', () => startChatWithUser(user));
+                onlineUsersList.appendChild(userElement);
+            }
+        });
+    }
+
+    function startChatWithUser(user) {
+        recipientId = user.id;
+        recipientUsername = user.username;
+        recipientProfilePic = user.profile_pic;
+        
+        // Update the chat header
+        document.querySelector('#chat-header').innerHTML = `
+            <img src="${recipientProfilePic}" alt="${recipientUsername}" class="w-10 h-10 rounded-full mr-3 object-cover">
+            <span class="font-bold">${recipientUsername}</span>
         `;
-        messageForm.prepend(warningDiv);
+
+        // Clear current chat messages
+        chatMessages.innerHTML = '';
+
+        // Load messages for the new recipient
+        loadInitialMessages();
+
+        // Update form data attributes
+        messageForm.dataset.recipientId = recipientId;
     }
 
-    function useAlternative(alternative) {
-        messageInput.value = alternative;
-        document.querySelector('.bg-yellow-100').remove();
-    }
-
-    function useSuggestion(suggestion) {
-        messageInput.value = suggestion;
-        aiSuggestion.classList.add('hidden');
-    }
-
-    // Update message status
-    socket.on('message_status_update', function(data) {
-        const statusIndicator = document.querySelector(`.status-indicator[message-id="${data.message_id}"]`);
-        if (statusIndicator) {
-            statusIndicator.textContent = data.read ? 'Read' : 'Delivered';
-        }
-    });
-
-    // Load initial messages
     function loadInitialMessages() {
         fetch(`/api/messages?recipient_id=${recipientId}`)
             .then(response => response.json())
@@ -325,6 +384,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make functions globally accessible
     window.useAlternative = useAlternative;
     window.useSuggestion = useSuggestion;
+    window.deleteMessage = deleteMessage;
 });
     </script>
 </body>

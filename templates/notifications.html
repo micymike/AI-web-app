@@ -8,16 +8,48 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
+<style>
+    @keyframes gradientBG {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    .gradient-bg {
+        background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+        background-size: 400% 400%;
+        animation: gradientBG 15s ease infinite;
+    }
+    .like-button i {
+        transition: color 0.3s ease, transform 0.3s ease;
+        color: gray;
+    }
+    .like-button:hover i {
+        transform: scale(1.2);
+    }
+    .like-button.liked i {
+        color: #e73c7e;
+    }
+    .post-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .post-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+</style>
 <body class="bg-gray-100">
-    <nav class="bg-blue-600 p-4">
+    <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="{{ url_for('index') }}" class="text-white text-2xl font-bold">LuNa</a>
+            <a href="/" class="text-white text-2xl font-bold flex items-center">
+                <i class="fas fa-globe mr-2"></i>
+                LuNa
+            </a>
             <div>
-                <a href="{{ url_for('index') }}" class="text-white mr-4">Home</a>
-                <a href="{{ url_for('profile', username=current_user.username) }}" class="text-white mr-4">Profile</a>
-                <a href="{{ url_for('messages') }}" class="text-white mr-4">Messages</a>
-                <a href="{{ url_for('logout') }}" class="text-white">Logout</a>
-            </div>
+                <a href="/" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
+                <a href="/profile/{{ current_user.username }}" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
+                <a href="/messages" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
+                <a href="/logout" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
+             </div>
         </div>
     </nav>
 

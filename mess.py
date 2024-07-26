@@ -1,72 +1,79 @@
 import os
-from flask import Flask, jsonify
-from flask_socketio import SocketIO, emit
+from flask import Flask, jsonify, request
+from flask_login import login_required, current_user
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 import emojis
-import socketio
-
 from models import db, Message, User
 from sqlalchemy import case, or_
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 app = Flask(__name__)
-# Initialize Gemini AI
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
 socketio = SocketIO(app)
-def init_mess(socketio):
-    @socketio.on('connect')
-    def handle_connect():
-        print('Client connected')
-
-    @socketio.on('disconnect')
-    def handle_disconnect():
-        print('Client disconnected')
 
 @socketio.on('send_message')
 def handle_send_message(data):
     sender_id = data['sender_id']
     recipient_id = data['recipient_id']
     content = data['content']
-    media_url = data.get('media_url')
     
-    ai_suggestion = generate_ai_reply(content)
-    emit('ai_reply_suggestion', {
-        'suggestion': ai_suggestion,
-        'recipient_id': recipient_id
-    }, room=recipient_id)
-
     moderation_result = moderate_content(content)
-    if not moderation_result['appropriate']:
+    if moderation_result['violates_guidelines']:
         emit('message_warning', {
-            'reason': moderation_result['reason'],
-            'alternatives': moderation_result['alternatives'],
+            'reason': moderation_result['explanation'],
+            'alternatives': moderation_result['suggestions'],
             'sender_id': sender_id
         }, room=sender_id)
         return
-    @socketio.on('message_read')
-    def handle_message_read(data):
-        message_id = data['message_id']
-        message = Message.query.get(message_id)
-        if message:
-            message.read = True
-            db.session.commit()
-            emit('message_status_update', {'message_id': message_id, 'read': True}, room=message.sender_id)
+    
+    new_message, error = send_message_helper(sender_id, recipient_id, content)
+    if error:
+        emit('message_error', {'error': error}, room=sender_id)
+        return
+    
+    message_data = {
+        'id': new_message.id,
+        'sender_id': new_message.sender_id,
+        'recipient_id': new_message.recipient_id,
+        'content': new_message.content,
+        'timestamp': new_message.timestamp.isoformat()
+    }
+    
+    emit('new_message', message_data, room=recipient_id)
+    emit('new_message', message_data, room=sender_id)
 
-    @socketio.on('typing')
-    def handle_typing(data):
-        sender_id = data['sender_id']
-        recipient_id = data['recipient_id']
-        emit('typing', {'sender_id': sender_id}, room=recipient_id)
+@socketio.on('join')
+def on_join(data):
+    username = data['username']
+    room = data['room']
+    join_room(room)
+    emit('status', {'msg': f'{username} has entered the room.'}, room=room)
 
-    @socketio.on('stop_typing')
-    def handle_stop_typing(data):
-        sender_id = data['sender_id']
-        recipient_id = data['recipient_id']
-        emit('stop_typing', {'sender_id': sender_id}, room=recipient_id)
+@socketio.on('leave')
+def on_leave(data):
+    username = data['username']
+    room = data['room']
+    leave_room(room)
+    emit('status', {'msg': f'{username} has left the room.'}, room=room)
+
+
+
+def init_mess(socketio):
+    @socketio.on('connect')
+    def handle_connect():
+        if current_user.is_authenticated:
+            join_room(str(current_user.id))
+            emit('user_connected', {'user_id': current_user.id, 'username': current_user.username})
+
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        if current_user.is_authenticated:
+            leave_room(str(current_user.id))
+            emit('user_disconnected', {'user_id': current_user.id, 'username': current_user.username})
 
 def moderate_content(content):
     prompt = f"""
@@ -75,14 +82,14 @@ def moderate_content(content):
     If inappropriate, suggest 3 alternative phrasings that convey a similar meaning in a more appropriate way.
     Response format:
     {{
-        "appropriate": boolean,
-        "reason": string,
-        "alternatives": [string, string, string]
+        "violates_guidelines": boolean,
+        "explanation": string,
+        "suggestions": [string, string, string]
     }}
     
     Message: "{content}"
     """
-
+    
     response = model.generate_content(prompt)
     result = eval(response.text)
     return result
@@ -106,20 +113,14 @@ def get_messages(current_user_id, recipient_id, page=1, per_page=20):
         )
     ).order_by(Message.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
-    return messages
+    return messages.items
 
-def send_message_helper(sender_id, recipient_id, content, media_url=None):
-    moderation_result = moderate_content(content)
-    if not moderation_result['appropriate']:
-        return None, moderation_result['reason']
-
+def send_message_helper(sender_id, recipient_id, content):
     new_message = Message(
         sender_id=sender_id,
         recipient_id=recipient_id,
         content=content,
-        media_url=media_url,
-        timestamp=datetime.utcnow(),
-        sentiment='neutral'  # Sentiment analysis removed
+        timestamp=datetime.utcnow()
     )
     db.session.add(new_message)
     db.session.commit()
@@ -184,8 +185,7 @@ def suggest_conversation_starters(user_id, other_user_id):
     response = model.generate_content(prompt)
     return response.text.split('\n')
 
-# Function to get a list of available users with profile pics
 def get_available_users():
-    users = User.query.all()
-    available_users = [{'id': user.id, 'name': user.name, 'profile_pic': user.profile_pic_url} for user in users]
+    users = User.query.filter(User.id != current_user.id).all()
+    available_users = [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
     return available_users

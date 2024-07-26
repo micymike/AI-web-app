@@ -36,17 +36,17 @@
                 <i class="fas fa-globe mr-2"></i>
                 LuNa
             </a>
-            <div>
-                <a href="/" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
-                <a href="/profile/{{ current_user.username }}" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
-                <a href="/messages" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
+            <div class="flex space-x-4">
+                <a href="/" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
+                <a href="/profile/{{ current_user.username }}" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
+                <a href="/messages" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
                 <a href="/logout" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
             </div>
         </div>
     </nav>
 
-    <main class="container mx-auto mt-8">
-        <div class="bg-white rounded-lg shadow-md p-8">
+    <main class="container mx-auto mt-8 px-4 sm:px-6 lg:px-8">
+        <div class="bg-white rounded-lg shadow-md p-6 sm:p-8 md:p-10 lg:p-12">
             <!-- User Info Section -->
             <div class="flex flex-col md:flex-row items-center mb-6">
                 <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}'s profile picture" class="w-32 h-32 rounded-full mr-6 mb-4 md:mb-0">
@@ -56,8 +56,8 @@
                     <p class="text-sm text-gray-500">
                         <i class="fas fa-calendar-alt mr-1"></i>
                         Joined {{ user.date_joined.strftime('%B %Y') if user.date_joined else 'Date not available' }}
-                      </p>
-                      
+                    </p>
+
                     {% if current_user.id == user.id %}
                         <a href="{{ url_for('edit_profile') }}" class="mt-2 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">Edit Profile</a>
                     {% elif not current_user.is_following(user) %}
