@@ -2,10 +2,18 @@ from datetime import timedelta, timezone, datetime
 from flask import Blueprint
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+import pytz
 
 db = SQLAlchemy()
 profile = Blueprint('models', __name__)
 EAT = timezone(timedelta(hours=3))
+
+# Define the association table for followers
+followers = db.Table(
+    'followers',
+    db.Column('follower_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
+)
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -14,23 +22,36 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(128), nullable=False)
     profile_picture = db.Column(db.String(120), default='default.jpg')
     bio = db.Column(db.Text)
-    date_joined = db.Column(db.DateTime, default=lambda: datetime.now(EAT))
+    date_joined = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Africa/Nairobi')))
     posts = db.relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan")
     comments = db.relationship('Comment', backref='author', lazy='dynamic', cascade="all, delete-orphan")
-    following = db.relationship('Follow',
-                                foreign_keys='Follow.follower_id',
-                                backref='follower',
-                                lazy='dynamic',
-                                cascade="all, delete-orphan")
-    followers = db.relationship('Follow',
-                                foreign_keys='Follow.followed_id',
-                                backref='followed',
-                                lazy='dynamic',
-                                cascade="all, delete-orphan")
+    
+    followed = db.relationship(
+        'User',
+        secondary=followers,
+        primaryjoin=(id == followers.c.follower_id),
+        secondaryjoin=(id == followers.c.followed_id),
+        backref=db.backref('followers', lazy='dynamic'),
+        lazy='dynamic'
+    )
+
+    def follow(self, user):
+        if not self.is_following(user):
+            self.followed.append(user)
+            db.session.commit()
+
+    def unfollow(self, user):
+        if self.is_following(user):
+            self.followed.remove(user)
+            db.session.commit()
+
+    def is_following(self, user):
+        return self.followed.filter(
+            followers.c.followed_id == user.id
+        ).count() > 0
 
     def __repr__(self):
         return f'<User {self.username}>'
-
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)

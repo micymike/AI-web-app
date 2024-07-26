@@ -19,28 +19,28 @@
             background-size: 400% 400%;
             animation: gradientBG 15s ease infinite;
         }
-        .like-button i {
-            transition: color 0.3s ease, transform 0.3s ease;
-            color: gray;
-        }
-        .like-button:hover i {
-            transform: scale(1.2);
-        }
-        .like-button.liked i {
-            color: #e73c7e;
+        .user-initial {
+            width: 2.5rem;
+            height: 2.5rem;
+            background-color: #3B82F6;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50%;
         }
         .post-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transition: all 0.3s ease;
         }
         .post-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
-<body class="bg-gray-100">
-
-    <!-- Navigation Bar -->
+<body class="bg-gray-100 min-h-screen flex flex-col">
     <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
             <a href="/" class="text-white text-2xl font-bold flex items-center">
@@ -67,225 +67,123 @@
         </div>
     </nav>
 
-
-    <!-- Main Content -->
-    <div class="container mx-auto mt-8 flex flex-col sm:flex-row">
-        <!-- Sidebar/Profile Info -->
-        <div class="w-full sm:w-1/4 pr-0 sm:pr-4 mb-4 sm:mb-0">
-            <div class="bg-white shadow rounded-lg p-4 mb-4 post-card">
-                <img src="{{ url_for('static', filename='uploads/' + current_user.profile_picture) }}" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500">
-                <h2 class="text-xl font-bold text-center">{{ current_user.username }}</h2>
-                <p class="text-center text-gray-600">{{ current_user.bio }}</p>
-                {% if request.endpoint == 'profile' and user != current_user %}
-                    {% if current_user.is_following(user) %}
-                        <button onclick="toggleFollow('{{ user.username }}')" class="follow-button w-full text-center bg-red-500 text-white py-2 px-4 rounded mt-4 hover:bg-red-600 transition duration-300">
-                            <i class="fas fa-user-minus mr-2"></i>Unfollow
-                        </button>
+    <main class="flex-grow container mx-auto mt-4 px-4">
+        <div class="flex flex-wrap justify-center gap-4 mb-8">
+            {% for user in all_users %}
+                <a href="{{ url_for('user_profile', username=user.username) }}" class="flex flex-col items-center">
+                    {% if user.profile_picture %}
+                        <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-12 h-12 rounded-full">
                     {% else %}
-                        <button onclick="toggleFollow('{{ user.username }}')" class="follow-button w-full text-center bg-blue-500 text-white py-2 px-4 rounded mt-4 hover:bg-blue-600 transition duration-300">
-                            <i class="fas fa-user-plus mr-2"></i>Follow
-                        </button>
-                    {% endif %}
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Posts Section -->
-        <div class="w-full sm:w-3/4">
-            {% if request.endpoint == 'index' %}
-            <form id="create-post-form" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
-                <div id="ai-suggestions" class="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded hidden">
-                    <p id="ai-explanation" class="font-semibold text-yellow-700"></p>
-                    <p class="mt-2 font-medium text-yellow-600">Suggested alternatives:</p>
-                    <ul id="ai-suggestion-list" class="list-disc list-inside"></ul>
-                </div>
-                <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?" required></textarea>
-                <div class="mt-4 flex flex-col sm:flex-row sm:items-center gap-4">
-                    <label for="media-upload" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition duration-300 flex items-center space-x-2 w-full sm:w-auto">
-                        <i class="fas fa-image"></i>
-                        <span>Add Media</span>
-                    </label>
-                    <input id="media-upload" type="file" name="media" accept="image/*,video/*" class="hidden">
-                    <a href="https://content-gen-kw4y.onrender.com" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300 w-full sm:w-auto">
-                        <i class="fa-brands fa-bots"></i>
-                        <span>Content Generator</span>
-                    </a>
-                    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-300 flex items-center space-x-2 w-full sm:w-auto">
-                        <i class="fas fa-paper-plane"></i>
-                        <span>Post</span>
-                    </button>
-                </div>
-            </form>
-            {% endif %}
-            
-            {% for post in posts %}
-                <div id="post-{{ post.id }}" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
-                    <div class="flex items-center mb-2 justify-between">
-                        <div class="flex items-center">
-                            <img src="{{ url_for('static', filename='uploads/' + post.author.profile_picture) }}" alt="Profile Picture" class="w-10 h-10 rounded-full mr-2">
-                            <div>
-                                <a href="{{ url_for('profile', username=post.author.username) }}" class="font-bold hover:underline">{{ post.author.username }}</a>
-                                <p class="text-gray-500 text-sm">{{ post.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</p>
-                            </div>
+                        <div class="user-initial">
+                            {{ user.username[0].upper() }}
                         </div>
-                        {% if post.author == current_user %}
-                            <button onclick="deletePost('{{ post.id }}')" class="text-red-500 hover:text-red-700 transition duration-300">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        {% endif %}
-                    </div>
-                    <p class="mb-2">{{ post.content }}</p>
-                    {% if post.media_url %}
-                        {% if post.media_url.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
-                            <img src="{{ url_for('static', filename='uploads/' + post.media_url) }}" alt="Post Media" class="w-full rounded-lg mb-2">
-                        {% elif post.media_url.lower().endswith(('.mp4', '.webm', '.ogg')) %}
-                            <video src="{{ url_for('static', filename='uploads/' + post.media_url) }}" controls class="w-full rounded-lg mb-2"></video>
-                        {% endif %}
                     {% endif %}
-                    <div class="flex items-center">
-                        <button class="like-button mr-4 flex items-center {% if current_user in post.likes %}liked{% endif %}" data-post-id="{{ post.id }}">
-                            <i class="fas fa-heart mr-1"></i>
-                            <span class="like-count">{{ post.likes.count() }}</span> Likes
-                        </button>
-                        <button class="comment-button flex items-center" onclick="toggleComments('{{ post.id }}')">
-                            <i class="fas fa-comment mr-1"></i>
-                            <span>{{ post.comments.count() }} Comments</span>
-                        </button>
-                    </div>
-                    <div id="comments-{{ post.id }}" class="hidden mt-4">
-                        {% for comment in post.comments %}
-                            <div id="comment-{{ comment.id }}" class="bg-gray-100 p-2 rounded mb-2 flex justify-between items-center">
-                                <p><strong>{{ comment.author.username }}:</strong> {{ comment.content }}</p>
-
-                                {% if comment.author == current_user %}
-                                    <button onclick="deleteComment('{{ comment.id }}', '{{ post.id }}')" class="text-red-500 hover:text-red-700 transition duration-300 text-sm">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                        <form action="{{ url_for('add_comment', post_id=post.id) }}" method="post" class="mt-2 flex">
-                            <input type="text" name="content" class="w-full p-2 border rounded-l" placeholder="Add a comment...">
-                            <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded-r hover:bg-blue-600 transition duration-300">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                    <span class="text-sm mt-1">{{ user.username }}</span>
+                </a>
             {% endfor %}
         </div>
-    </div>
-    <footer class="bg-gray-200 p-4 mt-8">
-        <div class="container mx-auto text-center text-gray-600">
-            &copy; 2024 LuNa SocialApp. All rights reserved.
+    
+        <div class="flex flex-col sm:flex-row">
+            <div class="w-full sm:w-1/4 pr-0 sm:pr-4 mb-4 sm:mb-0">
+                <div class="bg-white shadow rounded-lg p-4 mb-4 post-card">
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.profile_picture %}
+                            <img src="{{ url_for('static', filename='uploads/' + current_user.profile_picture) }}" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500">
+                        {% else %}
+                            <div class="user-initial w-32 h-32 mx-auto mb-4 border-4 border-blue-500 text-5xl flex items-center justify-center">
+                                {{ current_user.username[0].upper() }}
+                            </div>
+                        {% endif %}
+                        <h2 class="text-xl font-bold text-center">{{ current_user.username }}</h2>
+                        <p class="text-center mt-2">{{ current_user.bio }}</p>
+                    {% else %}
+                        <p class="text-center">Please <a href="{{ url_for('login') }}" class="text-blue-500 hover:underline">log in</a> to see your profile.</p>
+                    {% endif %}
+                </div>
+            </div>
+    
+            <div class="w-full sm:w-3/4">
+                {% if current_user.is_authenticated %}
+                    <div id="post-form" class="bg-white shadow rounded-lg p-4 mb-4">
+                        <form id="create-post-form" action="{{ url_for('post') }}" method="post" enctype="multipart/form-data">
+                            <textarea id="post-content" name="content" placeholder="What's on your mind?" class="w-full p-2 border rounded mb-2" rows="3">{{ original_content if original_content else '' }}</textarea>
+                            <div id="ai-suggestions" class="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded {{ 'hidden' if not ai_response else '' }}">
+                                <p>{{ ai_response['explanation'] }}</p>
+                                <ul id="ai-suggestion-list">
+                                    {% if ai_response %}
+                                        {% for suggestion in ai_response['suggestions'] %}
+                                            <li class="text-yellow-700 cursor-pointer hover:text-yellow-800">{{ suggestion }}</li>
+                                        {% endfor %}
+                                    {% endif %}
+                                </ul>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <input type="file" name="media" id="media" class="hidden" accept="image/*,video/*">
+                                <label for="media" class="btn btn-primary flex items-center space-x-2 py-2 px-4 rounded bg-blue-600 hover:bg-blue-700 transition duration-300 cursor-pointer">
+                                    <i class="fas fa-image"></i>
+                                    <span>Add Media</span>
+                                </label>
+                                <a href="https://content-gen-kw4y.onrender.com" target="_blank" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300">
+                                    <i class="fa-brands fa-bots"></i>
+                                    Content Generator
+                                </a>
+                                <button type="submit" class="btn btn-primary flex items-center space-x-2 py-2 px-4 rounded bg-blue-500 hover:bg-green-700 transition duration-300">
+                                    <i class="fas fa-paper-plane"></i>
+                                    Post
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                {% endif %}
+    
+                {% for post in all_posts %}
+                    <div id="post-{{ post.id }}" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
+                        <div class="flex items-center mb-2 justify-between">
+                            <div class="flex items-center">
+                                {% if post.author.profile_picture %}
+                                    <img src="{{ url_for('static', filename='uploads/' + post.author.profile_picture) }}" alt="Profile Picture" class="w-10 h-10 rounded-full mr-2">
+                                {% else %}
+                                    <div class="user-initial mr-2">
+                                        {{ post.author.username[0].upper() }}
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <a href="{{ url_for('user_profile', username=post.author.username) }}" class="font-bold hover:underline">@{{ post.author.username }}</a>
+                                    <p class="text-sm text-gray-500">{{ post.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</p>
+                                </div>
+                            </div>
+                            {% if post.author == current_user %}
+                                <button class="text-red-500 hover:text-red-700" onclick="deletePost({{ post.id }})">Delete</button>
+                            {% endif %}
+                        </div>
+                        <p class="mb-2">{{ post.content | replace_usernames | safe }}</p>
+                        {% if post.media_url %}
+                            {% if post.media_url.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+                                <img src="{{ url_for('static', filename='uploads/' + post.media_url) }}" alt="Post Media" class="w-full rounded-lg mb-2">
+                            {% elif post.media_url.lower().endswith(('.mp4', '.webm', '.ogg')) %}
+                                <video src="{{ url_for('static', filename='uploads/' + post.media_url) }}" controls class="w-full rounded-lg mb-2"></video>
+                            {% endif %}
+                        {% endif %}
+                        <div class="flex items-center space-x-2">
+                            <button class="text-blue-500 hover:text-blue-700" onclick="likePost({{ post.id }})">Like <span id="like-count-{{ post.id }}">{{ post.likes_count }}</span></button>
+                            <button class="text-gray-500 hover:text-gray-700">Comment</button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+    
+    
+
+    <footer class="bg-gray-800 text-white py-4 mt-8">
+        <div class="container mx-auto text-center">
+            © 2024 LuNa. All rights reserved.
         </div>
     </footer>
 
-    <!-- JavaScript for Like and Follow Functionality -->
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Handle Follow/Unfollow Button Click
-            document.querySelectorAll('.follow-button').forEach(button => {
-                button.addEventListener('click', function () {
-                    const username = this.getAttribute('onclick').match(/'([^']+)'/)[1];
-                    fetch(`/follow/${username}`, { method: 'POST' })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.following) {
-                                button.innerHTML = `<i class="fas fa-user-minus mr-2"></i>Unfollow`;
-                                button.classList.add('bg-red-500');
-                                button.classList.remove('bg-blue-500');
-                            } else {
-                                button.innerHTML = `<i class="fas fa-user-plus mr-2"></i>Follow`;
-                                button.classList.add('bg-blue-500');
-                                button.classList.remove('bg-red-500');
-                            }
-                        });
-                });
-            });
-                    // JavaScript to toggle the menu
-        document.getElementById('menu-toggle').addEventListener('click', function() {
-            var dropdownMenu = document.getElementById('dropdown-menu');
-            dropdownMenu.classList.toggle('hidden');
-        });
-
-            // Handle Like Button Click
-            document.querySelectorAll('.like-button').forEach(button => {
-                button.addEventListener('click', function () {
-                    const postId = this.getAttribute('data-post-id');
-                    fetch(`/like/${postId}`, { method: 'POST' })
-                        .then(response => response.json())
-                        .then(data => {
-                            const likeCount = this.querySelector('.like-count');
-                            if (data.liked) {
-                                this.classList.add('liked');
-                                likeCount.textContent = data.likes;
-                            } else {
-                                this.classList.remove('liked');
-                                likeCount.textContent = data.likes;
-                            }
-                        });
-                });
-            });
-
-            // Handle Delete Post Button Click
-            window.deletePost = function (postId) {
-                if (confirm('Are you sure you want to delete this post?')) {
-                    fetch(`/delete_post/${postId}`, { method: 'DELETE' })
-                        .then(response => {
-                            if (response.ok) {
-                                document.getElementById(`post-${postId}`).remove();
-                                alert('Post deleted successfully.');
-                            } else {
-                                response.json().then(data => {
-                                    alert(`Failed to delete post: ${data.message}`);
-                                });
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('An error occurred. Please try again later.');
-                        });
-                }
-            };
-            
-            
-
-            // Handle Delete Comment Button Click
-            window.deleteComment = function (commentId, postId) {
-                if (confirm('Are you sure you want to delete this comment?')) {
-                    fetch(`/delete_comment/${commentId}`, { method: 'DELETE' })
-                        .then(() => {
-                            document.getElementById(`comment-${commentId}`).remove();
-                        });
-                }
-            };
-
-            // Handle Toggle Comments Button Click
-            window.toggleComments = function (postId) {
-                const commentsSection = document.getElementById(`comments-${postId}`);
-                commentsSection.classList.toggle('hidden');
-            };
-
-            // Handle Follow Button
-            window.toggleFollow = function (username) {
-                fetch(`/follow/${username}`, { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        const button = document.querySelector(`.follow-button[data-username="${username}"]`);
-                        if (data.following) {
-                            button.innerHTML = `<i class="fas fa-user-minus mr-2"></i>Unfollow`;
-                            button.classList.add('bg-red-500');
-                            button.classList.remove('bg-blue-500');
-                        } else {
-                            button.innerHTML = `<i class="fas fa-user-plus mr-2"></i>Follow`;
-                            button.classList.add('bg-blue-500');
-                            button.classList.remove('bg-red-500');
-                        }
-                    });
-            };
-        });
-
+        
         document.addEventListener('DOMContentLoaded', function () {
             const createPostForm = document.getElementById('create-post-form');
             const postContent = document.getElementById('post-content');
@@ -293,6 +191,7 @@
             const aiExplanation = document.getElementById('ai-explanation');
             const aiSuggestionList = document.getElementById('ai-suggestion-list');
         
+            // Function to handle form submission
             createPostForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 const formData = new FormData(this);
@@ -301,9 +200,16 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    // Handle redirection if returned from server
+                    if (response.redirected) {
+                        window.location.href = response.url;
+                        return;
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data.violates_guidelines) {
+                    if (data && data.violates_guidelines) {
                         aiExplanation.textContent = data.explanation;
                         aiSuggestionList.innerHTML = '';
                         data.suggestions.forEach(suggestion => {
@@ -327,7 +233,42 @@
                     alert('An error occurred while processing your post. Please try again.');
                 });
             });
+        
+            // Function to handle "like" button clicks
+            window.likePost = function(postId) {
+                fetch(`/like/${postId}`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById(`like-count-${postId}`).textContent = data.likes_count;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while liking the post. Please try again.');
+                    });
+            };
+        
+            // Function to handle "delete" button clicks
+            window.deletePost = function(postId) {
+                if (confirm('Are you sure you want to delete this post?')) {
+                    fetch(`/delete_post/${postId}`, { method: 'DELETE' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                document.getElementById(`post-${postId}`).remove();
+                            } else {
+                                alert('An error occurred while deleting the post. Please try again.');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred while deleting the post. Please try again.');
+                        });
+                }
+            };
         });
-    </script>
+        
+        </script>
+        
+    
 </body>
 </html>

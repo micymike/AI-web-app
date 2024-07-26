@@ -68,12 +68,17 @@ def is_valid_input(text):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif', 'mp4'}
 
+from flask_login import current_user, login_required
+
 @app.route('/')
-@login_required
 def index():
-    followed_users = [follow.followed_id for follow in current_user.following]
-    posts = Post.query.filter(Post.user_id.in_(followed_users + [current_user.id])).order_by(Post.timestamp.desc()).all()
-    return render_template('index.html', posts=posts)
+    if current_user.is_authenticated:
+        all_users = User.query.all()
+        all_posts = Post.query.order_by(Post.timestamp.desc()).all()
+    else:
+        all_users = []
+        all_posts = []
+    return render_template('index.html', all_users=all_users, all_posts=all_posts)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -102,12 +107,22 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html')
 
+@app.template_filter('replace_usernames')
+def replace_usernames(text):
+    def replace_username(match):
+        username = match.group(1)
+        return f'<a href="{url_for("profile", username=username)}" class="text-blue-500 hover:underline">@{username}</a>'
+    
+    return re.sub(r'@(\w+)', replace_username, text)
 @app.route('/profile/<username>')
 
-def profile(username):
+@app.route('/profile/<username>')
+def user_profile(username):
     user = User.query.filter_by(username=username).first_or_404()
-    posts = Post.query.filter_by(user_id=user.id).order_by(Post.timestamp.desc()).all()
-    return render_template('profile.html', user=user, posts=posts)
+    posts = Post.query.filter_by(user_id=user.id).all()
+    followers_count = user.followers.count()  # Assuming you have a way to get the count of followers
+    return render_template('profile.html', user=user, posts=posts, followers_count=followers_count)
+
 
 @app.route('/edit_profile', methods=['GET', 'POST'])
 
@@ -165,18 +180,19 @@ genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
 
 @app.route('/post', methods=['GET', 'POST'])
+@login_required
 def post():
     if request.method == 'POST':
         user_input = request.form.get('content', '').strip()
 
         if not user_input:
-            return jsonify({'error': 'Post content cannot be empty!'}), 400
+            flash('Post content cannot be empty!', 'warning')
+            return redirect(url_for('index'))
 
         # Use Gemini model to check for community guideline violations
         prompt = f"""
         Analyze the following text for any violations of community guidelines. 
-        If violations are found, provide a friendly explanation and suggest 3 alternative wordings.
-        Make the suggestions fun and engaging.
+        If violations are found, provide an explanation and suggest alternative wordings.
         Text to analyze: "{user_input}"
         
         Respond in the following JSON format:
@@ -189,6 +205,7 @@ def post():
 
         try:
             response = model.generate_content(prompt)
+            logger.debug(f"Raw Gemini response: {response}")
             logger.debug(f"Gemini response text: {response.text}")
             
             # Extract JSON from the response
@@ -201,11 +218,15 @@ def post():
             logger.debug(f"Parsed response data: {response_data}")
 
             if response_data.get('violates_guidelines', False):
-                return jsonify({
-                    'violates_guidelines': True,
-                    'explanation': response_data.get('explanation', 'No explanation provided.'),
-                    'suggestions': response_data.get('suggestions', [])
-                }), 200
+                explanation = response_data.get('explanation', 'No explanation provided.')
+                suggestions = response_data.get('suggestions', [])
+
+                ai_response = {
+                    'explanation': explanation,
+                    'suggestions': suggestions
+                }
+
+                return render_template('index.html', original_content=user_input, ai_response=ai_response)
 
             # If we've reached this point, the content is okay to post
             new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
@@ -214,19 +235,21 @@ def post():
                 file = request.files['media']
                 if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
-                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    file.save(os.path.join('static/uploads', filename))
                     new_post.media_url = filename
             
             db.session.add(new_post)
             db.session.commit()
-            
-            return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
+            flash('Your post has been created!', 'success')
 
         except Exception as e:
             logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
-            return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
+            flash(f'An error occurred while processing your post. Please try again.', 'danger')
+        
+        return redirect(url_for('index'))
 
-    return render_template('create_post.html')
+    return render_template('index.html', original_content=user_input, ai_response=ai_response)
+
 
 @app.route('/submit_post', methods=['POST'])
 

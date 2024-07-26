@@ -94,22 +94,28 @@
 
             <!-- Bio Section -->
             <div class="bg-gray-50 p-4 rounded-lg mb-6">
-                <h2 class="text-xl font-semibold mb-2">About Me</h2>
+                <h2 class="text-xl font-semibold mb-2">About</h2>
                 <p class="text-gray-700">{{ user.bio }}</p>
             </div>
 
             <!-- Stats Section -->
             <div class="flex flex-wrap justify-between mb-6">
                 <div class="w-full sm:w-1/3 text-center p-4 bg-blue-100 rounded-lg m-2">
-                    <span class="text-3xl font-bold text-blue-600">{{ user.posts.count() }}</span>
+                    <span class="text-3xl font-bold text-blue-600">{{ posts_count }}</span>
                     <p class="text-gray-600">Posts</p>
                 </div>
                 <div class="w-full sm:w-1/3 text-center p-4 bg-green-100 rounded-lg m-2">
-                    <span class="text-3xl font-bold text-green-600">{{ user.followers.count() }}</span>
-                    <p class="text-gray-600">Followers</p>
+                    <span class="text-3xl font-bold text-green-600">{{ followers_count }}</span>
+                    <p class="text-gray-600">
+                        {% if followers_count == 1 %}
+                            1 follower
+                        {% else %}
+                            {{ followers_count }} followers
+                        {% endif %}
+                    </p>
                 </div>
                 <div class="w-full sm:w-1/3 text-center p-4 bg-purple-100 rounded-lg m-2">
-                    <span class="text-3xl font-bold text-purple-600">{{ user.following.count() }}</span>
+                    <span class="text-3xl font-bold text-purple-600">{{ following_count }}</span>
                     <p class="text-gray-600">Following</p>
                 </div>
             </div>

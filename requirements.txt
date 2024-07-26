@@ -11,3 +11,4 @@ Werkzeug
 gunicorn
 emojis
 SocketIO
+pytz

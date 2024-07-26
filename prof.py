@@ -24,8 +24,21 @@ def allowed_file(filename):
 @login_required
 def user_profile(username):
     user = User.query.filter_by(username=username).first_or_404()
-    posts = Post.query.filter_by(user_id=user.id).order_by(Post.timestamp.desc()).all()
-    return render_template('profile.html', user=user, posts=posts)
+    posts = Post.query.filter_by(author=user).order_by(Post.timestamp.desc()).all()
+    followers_count = db.session.query(Follow).filter_by(followed_id=user.id).count()
+    following_count = db.session.query(Follow).filter_by(follower_id=user.id).count()
+    posts_count = len(posts)  # Calculate the number of posts here
+
+    return render_template(
+        'profile.html',
+        user=user,
+        current_user=current_user,
+        posts=posts,
+        followers_count=followers_count,
+        following_count=following_count,
+        posts_count=posts_count
+    )
+
 
 @profile.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
@@ -61,17 +74,17 @@ def edit_profile():
 @profile.route('/follow/<username>', methods=['POST'])
 @login_required
 def follow(username):
-    user = User.query.filter_by(username=username).first()
-    if user is None:
-        flash('User not found.', 'error')
-        return redirect(url_for('index'))
-    if user == current_user:
-        flash('You cannot follow yourself!', 'error')
-        return redirect(url_for('prof.user_profile', username=username))
-    current_user.follow(user)
-    db.session.commit()
-    flash(f'You are now following {username}!', 'success')
+    user = User.query.filter_by(username=username).first_or_404()
+    if not current_user.is_following(user):
+        current_user.follow(user)
+        db.session.commit()
+        flash(f'You are now following {username}!', 'success')
+    else:
+        flash(f'You are already following {username}.', 'info')
+
     return redirect(url_for('prof.user_profile', username=username))
+
+
 
 @profile.route('/unfollow/<username>', methods=['POST'])
 @login_required
