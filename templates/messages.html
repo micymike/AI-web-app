@@ -3,14 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messages - LuNa</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/emoji-mart@latest/css/emoji-mart.css" rel="stylesheet">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='Luna-icon.png') }}">
-    <script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <title>Messages</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         @keyframes gradientBG {
             0% { background-position: 0% 50%; }
@@ -22,22 +17,83 @@
             background-size: 400% 400%;
             animation: gradientBG 15s ease infinite;
         }
-        .message-bubble {
-            transition: transform 0.3s ease;
+        .chat-bubble {
+            max-width: 70%;
+            word-wrap: break-word;
+            margin-bottom: 8px;
+            line-height: 20px;
+            padding: 8px 16px;
+            border-radius: 18px;
+            display: inline-block;
+            position: relative;
         }
-        .message-bubble:hover {
-            transform: scale(1.05);
+        .chat-bubble.left {
+            background: #e0e0e0;
+            align-self: flex-start;
         }
-        .emoji-mart {
+        .chat-bubble.right {
+            background: #3b82f6;
+            color: white;
+            align-self: flex-end;
+        }
+        .chat-bubble::after {
+            content: "";
             position: absolute;
-            bottom: 70px;
-            right: 20px;
-            z-index: 1000;
+            border-style: solid;
+            border-width: 8px 8px 0;
+            border-color: #3b82f6 transparent;
+            top: 50%;
+            transform: translateY(-50%);
+            left: -16px;
+            border-color: #e0e0e0 transparent;
+            right: -16px;
+        }
+        .chat-bubble.right::after {
+            left: auto;
+            right: -16px;
+            border-color: transparent transparent #3b82f6;
+        }
+        .message-input {
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            height: 40px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        .send-button {
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #3b82f6;
+            color: white;
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+        .send-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+        }
+        .conversation-starter {
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .conversation-starter:hover {
+            background-color: #e0e0e0;
+        }
+        .message-timestamp {
+            display: block;
+            font-size: 12px;
+            color: gray;
+            margin-top: 4px;
+            text-align: right;
         }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Navigation Bar -->
     <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
             <a href="/" class="text-white text-2xl font-bold flex items-center">
@@ -63,371 +119,172 @@
             <a href="/logout" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
         </div>
     </nav>
-
-    <script>
-        // JavaScript to toggle the menu
-        document.getElementById('menu-toggle').addEventListener('click', function() {
-            var dropdownMenu = document.getElementById('dropdown-menu');
-            dropdownMenu.classList.toggle('hidden');
-        });
-    </script>
-    
-    <div class="container mx-auto mt-8 flex flex-col lg:flex-row">
-        <!-- User list -->
- 
-<div class="w-full lg:w-1/4 bg-white rounded-lg shadow-md p-4 mb-4 lg:mb-0 lg:mr-4">
-    <h2 class="text-xl font-bold mb-4">Conversations</h2>
-    
-    <div class="space-y-2">
-        {% for user in users %}
-        <a href="{{ url_for('messages', recipient_id=user.id) }}" class="flex items-center p-2 hover:bg-gray-100 rounded-lg transition duration-300">
-            <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full mr-3 object-cover">
-            <div>
-                <p class="font-semibold">{{ user.username }}</p>
-                <p class="text-sm text-gray-500">{{ user.status }}</p>
-            </div>
-        </a>
-        {% endfor %}
-    </div>
-</div>
-
-<style>
-    .user-list {
-        max-height: calc(100vh - 200px);
-        overflow-y: auto;
-    }
-</style>
-        
-        <!-- Chat window -->
-        <div class="w-full lg:w-3/4 bg-white rounded-lg shadow-md p-4">
-            {% if recipient %}
-                <h2 class="text-xl font-bold mb-4 flex items-center">
-                    <img src="{{ url_for('static', filename='uploads/' + recipient.profile_picture) }}" alt="{{ recipient.username }}" class="w-10 h-10 rounded-full mr-3">
-                    Chat with {{ recipient.username }}
-                </h2>
-                <div class="mb-4">
-                    <input type="text" id="search-input" class="w-full border rounded-lg p-2" placeholder="Search messages...">
-                </div>
-                <!-- AI-suggested conversation starters -->
-                <div id="conversation-starters" class="mb-4">
-                    <h3 class="font-bold mb-2">Conversation Starters</h3>
-                    <ul id="starters-list" class="list-disc pl-5">
-                        {% for starter in starters %}
-                            <li class="cursor-pointer hover:text-blue-500" onclick="useConversationStarter(this.textContent)">{{ starter }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                <div id="chat-messages" class="h-96 overflow-y-auto mb-4 p-4 border rounded-lg">
-                    {% for message in messages %}
-                        <div class="mb-4 {% if message.sender_id == current_user.id %}text-right{% endif %}">
-                            <div class="inline-block message-bubble {% if message.sender_id == current_user.id %}bg-blue-500 text-white{% else %}bg-gray-300{% endif %} rounded-lg py-2 px-4 max-w-xs lg:max-w-md">
-                                <div class="flex items-center mb-2">
-                                    <img src="{{ url_for('static', filename='uploads/' + (current_user.profile_picture if message.sender_id == current_user.id else recipient.profile_picture)) }}" alt="{{ 'You' if message.sender_id == current_user.id else recipient.username }}" class="w-6 h-6 rounded-full mr-2">
-                                    <span class="font-bold">{{ 'You' if message.sender_id == current_user.id else recipient.username }}</span>
-                                </div>
-                                {% if message.media_url %}
-                                    <img src="{{ message.media_url }}" alt="Shared media" class="max-w-full h-auto rounded-lg mb-2">
-                                {% endif %}
-                                {{ message.content }}
-                                <!-- Display message sentiment -->
-                                <span class="ml-2 text-xs">
-                                    {% if message.sentiment == 'positive' %}
-                                        <i class="fas fa-smile text-green-500"></i>
-                                    {% elif message.sentiment == 'negative' %}
-                                        <i class="fas fa-frown text-red-500"></i>
-                                    {% else %}
-                                        <i class="fas fa-meh text-gray-500"></i>
-                                    {% endif %}
-                                </span>
-                            </div>
-                            <div class="text-xs text-gray-500 mt-1">
-                                {{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}
-                                {% if message.sender_id == current_user.id %}
-                                    <span class="ml-2 status-indicator" data-message-id="{{ message.id }}">
-                                        {% if message.read %}
-                                            <i class="fas fa-check-double text-blue-500"></i>
-                                        {% elif message.delivered %}
-                                            <i class="fas fa-check-double"></i>
-                                        {% else %}
-                                            <i class="fas fa-check"></i>
-                                        {% endif %}
-                                    </span>
-                                {% endif %}
-                            </div>
-                        </div>
+    <div class="container mx-auto py-8">
+        <div class="flex flex-col md:flex-row">
+            <!-- User List -->
+            <div class="w-full md:w-1/4 bg-white p-4 rounded-lg shadow mb-4 md:mb-0">
+                <h2 class="text-lg font-bold mb-4">Users</h2>
+                <ul>
+                    {% for user in available_users %}
+                        <li>
+                            <a href="{{ url_for('messages', recipient_id=user.id) }}" class="flex items-center p-2 rounded-lg hover:bg-gray-200">
+                                <img src="{{ user.profile_picture }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full">
+                                <span class="ml-3">{{ user.username }}</span>
+                            </a>
+                        </li>
                     {% endfor %}
-                </div>
-                <div id="typing-indicator" class="text-sm text-gray-500 mb-2 hidden">
-                    <i class="fas fa-pencil-alt mr-2"></i>{{ recipient.username }} is typing...
-                </div>
-                <!-- AI-suggested reply -->
-                <div id="ai-reply-suggestion" class="mb-4 p-2 bg-yellow-100 rounded-lg hidden">
-                    <p class="font-bold">AI Suggested Reply:</p>
-                    <p id="ai-suggestion-content"></p>
-                    <button onclick="useAISuggestion()" class="mt-2 bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600 transition duration-300">Use Suggestion</button>
-                </div>
-                <form id="message-form" action="{{ url_for('send_message_route', recipient_id=recipient.id) }}" method="POST" class="mt-4" enctype="multipart/form-data">
-                    <div class="flex items-center">
-                        <input type="text" name="content" id="message-input" class="flex-grow border rounded-l-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Type your message..." required>
-                        <button type="button" id="emoji-button" class="bg-gray-200 text-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-300 transition duration-300">
-                            <i class="far fa-smile"></i>
-                        </button>
-                        <label for="file-input" class="cursor-pointer bg-green-500 text-white px-3 py-2 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-300">
-                            <i class="fas fa-paperclip"></i>
-                        </label>
-                        <input id="file-input" type="file" name="media" accept="image/*" class="hidden">
-                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
-                            <i class="fas fa-paper-plane mr-2"></i>Send
+                </ul>
+            </div>
+
+            <!-- Chat Area -->
+            <div class="w-full md:w-3/4 bg-white p-4 rounded-lg shadow ml-0 md:ml-4 flex flex-col">
+                {% if recipient %}
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold">Chatting with {{ recipient.username }}</h2>
+                        <button id="clear-chat-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-300 ease-in-out">
+                            <i class="fas fa-trash-alt mr-2"></i> Clear Chat
                         </button>
                     </div>
-                </form>
-            {% else %}
-                <p class="text-gray-500 text-center mt-20">Select a user to start chatting</p>
-            {% endif %}
+
+                    <!-- Messages -->
+                    <div id="messages" class="flex-1 overflow-y-auto mb-4 p-4">
+                        {% for message, sender in messages %}
+                            <div class="flex items-start mb-4 {{ 'justify-end' if message.sender_id == current_user.id else '' }}">
+                                {% if message.sender_id != current_user.id %}
+                                    <img src="{{ sender.profile_picture }}" alt="{{ sender.username }}" class="w-8 h-8 rounded-full mr-2">
+                                {% endif %}
+                                <div class="{{ 'ml-2' if message.sender_id != current_user.id else 'mr-2' }}">
+                                    <div class="chat-bubble {{ 'right' if message.sender_id == current_user.id else 'left' }}">
+                                        <p>{{ message.content }}</p>
+                                        {% if message.media_url %}
+                                            <img src="{{ message.media_url }}" alt="Media" class="mt-2 rounded-lg max-w-full">
+                                        {% endif %}
+                                    </div>
+                                    <span class="message-timestamp">{{ message.timestamp }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- New Message Form -->
+                    <form id="message-form" action="{{ url_for('send_message_route', recipient_id=recipient.id) }}" method="post" enctype="multipart/form-data" class="flex items-center">
+                        <input type="text" name="content" placeholder="Type a message..." class="message-input flex-1 mr-2">
+                        <label for="media" class="cursor-pointer mr-2">
+                            <i class="fas fa-paperclip text-gray-500 text-xl"></i>
+                            <input type="file" name="media" id="media" class="hidden">
+                        </label>
+                        <button type="submit" class="send-button">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+
+                    <!-- AI Reply Button -->
+                    <button id="ai-reply-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-4 transition duration-300 ease-in-out transform hover:scale-105">
+                        <i class="fas fa-robot mr-2"></i> AI Reply
+                    </button>
+
+                    <!-- Conversation Starters Button -->
+                    <button id="show-starters-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded mt-4 transition duration-300 ease-in-out transform hover:scale-105">
+                        <i class="fas fa-lightbulb mr-2"></i> Show Conversation Starters
+                    </button>
+
+                    <!-- Conversation Starters -->
+                    <div id="conversation-starters" class="mt-4 hidden bg-gray-100 p-4 rounded-lg">
+                        <h3 class="text-lg font-bold mb-2">Conversation Starters</h3>
+                        <ul class="list-none pl-0">
+                            {% for starter in starters %}
+                                <li class="conversation-starter mb-2 p-2 rounded-lg hover:bg-gray-200 transition duration-300 ease-in-out">{{ starter }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% else %}
+                    <p class="text-center text-gray-500">Select a user to start chatting.</p>
+                {% endif %}
+            </div>
         </div>
-        <!-- In messages.html -->
-        <main class="container mx-auto mt-8 px-4 sm:px-6 lg:px-8">
-            <div class="bg-white rounded-lg shadow-md p-6 sm:p-8 md:p-10 lg:p-12">
-                <!-- Available Users Section -->
-                <div class="flex flex-wrap mb-6">
-                    {% for user in available_users %}
-                        <div class="w-16 h-16 flex flex-col items-center mr-4 mb-4 cursor-pointer">
-                            <a href="{{ url_for('messages', recipient_id=user.id) }}">
-                                <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-16 h-16 rounded-full">
-                                <p class="text-xs text-center">{{ user.username }}</p>
-                            </a>
-                        </div>
-                    {% endfor %}
-                </div>
-    
-                <!-- Chat Window -->
-                <div class="w-full lg:w-3/4 bg-white rounded-lg shadow-md p-4">
-                    {% if recipient %}
-                        <h2 class="text-xl font-bold mb-4 flex items-center">
-                            <img src="{{ url_for('static', filename='uploads/' + recipient.profile_picture) }}" alt="{{ recipient.username }}" class="w-10 h-10 rounded-full mr-3">
-                            Chat with {{ recipient.username }}
-                        </h2>
-                        <div class="mb-4">
-                            <input type="text" id="search-input" class="w-full border rounded-lg p-2" placeholder="Search messages...">
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </main>
-</div>
     </div>
-    
+
+    <!-- Add the Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script>
-      
-// messages.js
+        const socket = io();
 
-document.addEventListener('DOMContentLoaded', function() {
-    const socket = io();
-    const messageForm = document.querySelector('#chat-form');
-    const messageInput = document.querySelector('#message-input');
-    const chatMessages = document.querySelector('#chat-messages');
-    const typingIndicator = document.querySelector('#typing-indicator');
-    const aiSuggestion = document.querySelector('#ai-reply-suggestion');
-    const onlineUsersList = document.querySelector('#online-users-list');
+        // Show conversation starters on button click
+        document.getElementById('show-starters-btn').addEventListener('click', () => {
+            const startersDiv = document.getElementById('conversation-starters');
+            startersDiv.classList.toggle('hidden');
+        });
 
-    const currentUserId = messageForm.dataset.currentUserId;
-    let recipientId = messageForm.dataset.recipientId;
-    const currentUserProfilePic = document.querySelector('#current-user-profile-pic').src;
-    let recipientProfilePic = document.querySelector('#recipient-profile-pic').src;
-    let recipientUsername = document.querySelector('#recipient-username').textContent;
+        // Trigger AI reply
+        document.getElementById('ai-reply-btn').addEventListener('click', () => {
+            const content = document.querySelector('input[name="content"]').value;
+            fetch(`/generate_ai_reply/${content}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.reply) {
+                        // Populate the chat input area with the AI-generated message
+                        const messageInput = document.querySelector('input[name="content"]');
+                        messageInput.value = data.reply;
+                    } else {
+                        console.error('AI reply error:', data.error);
+                    }
+                });
+        });
+    
+        // Clear chat functionality
+        document.getElementById('clear-chat-btn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the entire chat?')) {
+                fetch(`/delete_chat_history/{{ recipient.id }}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Include any necessary CSRF token here
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const messagesDiv = document.getElementById('messages');
+                        messagesDiv.innerHTML = '';
+                        alert('Chat history deleted successfully');
+                    } else {
+                        alert('Failed to delete chat history: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while deleting chat history');
+                });
+            }
+        });
 
-    let typingTimeout;
-
-    // Connect to WebSocket
-    socket.on('connect', function() {
-        console.log('Connected to WebSocket');
-        socket.emit('user_connected', { user_id: currentUserId });
-    });
-
-    // Handle incoming messages
-    socket.on('new_message', function(data) {
-        appendMessage(data);
-        scrollToBottom();
-    });
-
-    // Handle typing indicator
-    socket.on('typing', function(data) {
-        if (data.sender_id === recipientId) {
-            typingIndicator.classList.remove('hidden');
-        }
-    });
-
-    socket.on('stop_typing', function(data) {
-        if (data.sender_id === recipientId) {
-            typingIndicator.classList.add('hidden');
-        }
-    });
-
-    // Handle AI reply suggestions
-    socket.on('ai_reply_suggestion', function(data) {
-        aiSuggestion.innerHTML = `
-            <p class="font-bold">AI Suggested Reply:</p>
-            <p>${data.suggestion}</p>
-            <button onclick="useSuggestion('${data.suggestion}')" class="bg-blue-500 text-white px-4 py-2 rounded mt-2">Use Suggestion</button>
-        `;
-        aiSuggestion.classList.remove('hidden');
-    });
-
-    // Handle moderation warnings
-    socket.on('message_warning', function(data) {
-        showWarning(data.reason, data.alternatives);
-    });
-
-    function showWarning(reason, alternatives) {
-        const warningDiv = document.createElement('div');
-        warningDiv.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4';
-        warningDiv.innerHTML = `
-            <p class="font-bold">Warning: ${reason}</p>
-            <p>Consider using one of these alternatives:</p>
-            <ul class="list-disc pl-5 mt-2">
-                ${alternatives.map(alt => `<li><button class="text-blue-500 hover:underline" onclick="useAlternative('${alt}')">${alt}</button></li>`).join('')}
-            </ul>
-        `;
-        messageForm.prepend(warningDiv);
-    }
-
-    function useAlternative(alternative) {
-        messageInput.value = alternative;
-        document.querySelector('.bg-yellow-100').remove();
-    }
-
-    function useSuggestion(suggestion) {
-        messageInput.value = suggestion;
-        aiSuggestion.classList.add('hidden');
-    }
-
-    // Handle online users list update
-    socket.on('update_online_users', function(data) {
-        updateOnlineUsersList(data.users);
-    });
-
-    // Send message
-    messageForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        sendMessage();
-    });
-
-    // Handle typing
-    messageInput.addEventListener('input', function() {
-        socket.emit('typing', { sender_id: currentUserId, recipient_id: recipientId });
-
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => {
-            socket.emit('stop_typing', { sender_id: currentUserId, recipient_id: recipientId });
-        }, 3000);
-    });
-
-    function sendMessage() {
-        const content = messageInput.value.trim();
-        if (content) {
-            socket.emit('send_message', {
-                sender_id: currentUserId,
-                recipient_id: recipientId,
-                content: content
+        // Make conversation starters clickable
+        document.querySelectorAll('.conversation-starter').forEach(starter => {
+            starter.addEventListener('click', () => {
+                const messageInput = document.querySelector('input[name="content"]');
+                messageInput.value = starter.textContent;
+                document.getElementById('message-form').submit();
             });
-            messageInput.value = '';
-            clearTimeout(typingTimeout);
-            socket.emit('stop_typing', { sender_id: currentUserId, recipient_id: recipientId });
-        }
-    }
+        });
 
-    function appendMessage(message) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `mb-4 ${message.sender_id === currentUserId ? 'text-right' : ''}`;
-        messageDiv.innerHTML = `
-            <div class="inline-block message-bubble ${message.sender_id === currentUserId ? 'bg-blue-500 text-white' : 'bg-gray-300'} rounded-lg py-2 px-4 max-w-xs lg:max-w-md relative">
-                <div class="flex items-center mb-2">
-                    <img src="${message.sender_id === currentUserId ? currentUserProfilePic : recipientProfilePic}" class="w-6 h-6 rounded-full mr-2" alt="Profile picture">
-                    <span class="font-bold">${message.sender_id === currentUserId ? 'You' : recipientUsername}</span>
+        socket.on('new_message', (message) => {
+            const messagesDiv = document.getElementById('messages');
+            const newMessageDiv = document.createElement('div');
+            newMessageDiv.classList.add('flex', 'items-start', 'mb-4', message.sender_id === '{{ current_user.id }}' ? 'justify-end' : '');
+
+            newMessageDiv.innerHTML = `
+                ${message.sender_id !== '{{ current_user.id }}' ? `<img src="${message.sender_profile_picture}" alt="${message.sender_username}" class="w-8 h-8 rounded-full mr-2">` : ''}
+                <div class="${message.sender_id === '{{ current_user.id }}' ? 'mr-2' : 'ml-2'}">
+                    <div class="chat-bubble ${message.sender_id === '{{ current_user.id }}' ? 'right' : 'left'}">
+                        <p>${message.content}</p>
+                        ${message.media_url ? `<img src="${message.media_url}" alt="Media" class="mt-2 rounded-lg max-w-full">` : ''}
+                    </div>
+                    <span class="message-timestamp">${message.timestamp}</span>
                 </div>
-                <p>${message.content}</p>
-                ${message.media_url ? `<img src="${message.media_url}" class="max-w-full mt-2 rounded" alt="Media">` : ''}
-                ${message.sender_id === currentUserId ? `<button class="absolute top-1 right-1 text-red-500 hover:text-red-700" onclick="deleteMessage(${message.id})">🗑️</button>` : ''}
-            </div>
-            <div class="text-xs text-gray-500 mt-1">
-                ${new Date(message.timestamp).toLocaleString()}
-                ${message.sender_id === currentUserId ? `<span class="ml-2 status-indicator" message-id="${message.id}">Sent</span>` : ''}
-            </div>
-        `;
-        chatMessages.appendChild(messageDiv);
-    }
-
-    function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function deleteMessage(messageId) {
-        fetch(`/delete_message/${messageId}`, {
-            method: 'DELETE'
-        }).then(response => {
-            if (response.ok) {
-                const messageDiv = document.querySelector(`.message-bubble[data-message-id="${messageId}"]`);
-                if (messageDiv) {
-                    messageDiv.remove();
-                }
-            }
+            `;
+            messagesDiv.appendChild(newMessageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         });
-    }
-
-    function updateOnlineUsersList(users) {
-        onlineUsersList.innerHTML = '';
-        users.forEach(user => {
-            if (user.id !== currentUserId) {
-                const userElement = document.createElement('div');
-                userElement.className = 'flex items-center p-2 hover:bg-gray-100 rounded-lg transition duration-300 cursor-pointer';
-                userElement.innerHTML = `
-                    <img src="${user.profile_pic}" alt="${user.username}" class="w-10 h-10 rounded-full mr-3 object-cover">
-                    <span>${user.username}</span>
-                `;
-                userElement.addEventListener('click', () => startChatWithUser(user));
-                onlineUsersList.appendChild(userElement);
-            }
-        });
-    }
-
-    function startChatWithUser(user) {
-        recipientId = user.id;
-        recipientUsername = user.username;
-        recipientProfilePic = user.profile_pic;
-        
-        // Update the chat header
-        document.querySelector('#chat-header').innerHTML = `
-            <img src="${recipientProfilePic}" alt="${recipientUsername}" class="w-10 h-10 rounded-full mr-3 object-cover">
-            <span class="font-bold">${recipientUsername}</span>
-        `;
-
-        // Clear current chat messages
-        chatMessages.innerHTML = '';
-
-        // Load messages for the new recipient
-        loadInitialMessages();
-
-        // Update form data attributes
-        messageForm.dataset.recipientId = recipientId;
-    }
-
-    function loadInitialMessages() {
-        fetch(`/api/messages?recipient_id=${recipientId}`)
-            .then(response => response.json())
-            .then(messages => {
-                messages.forEach(appendMessage);
-                scrollToBottom();
-            });
-    }
-
-    loadInitialMessages();
-    scrollToBottom();
-
-    // Make functions globally accessible
-    window.useAlternative = useAlternative;
-    window.useSuggestion = useSuggestion;
-    window.deleteMessage = deleteMessage;
-});
     </script>
 </body>
 </html>

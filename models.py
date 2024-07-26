@@ -64,16 +64,15 @@ class Comment(db.Model):
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(EAT))
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    read = db.Column(db.Boolean, default=False)
-    delivered = db.Column(db.Boolean, default=False)
-    media_url = db.Column(db.String(255))
+    media_url = db.Column(db.String, nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_messages')
 
-    def __repr__(self):
-        return f'<Message {self.id}>'
 
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)

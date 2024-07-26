@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from flask import Flask, jsonify, request
 from flask_login import login_required, current_user
@@ -13,15 +16,18 @@ load_dotenv()
 app = Flask(__name__)
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
-socketio = SocketIO(app)
+
+# Use eventlet for asynchronous operations
+socketio = SocketIO(app, async_mode='eventlet')
 
 @socketio.on('send_message')
-def handle_send_message(data):
+async def handle_send_message(data):
     sender_id = data['sender_id']
     recipient_id = data['recipient_id']
     content = data['content']
     
-    moderation_result = moderate_content(content)
+    # Await the content moderation
+    moderation_result = await moderate_content(content)
     if moderation_result['violates_guidelines']:
         emit('message_warning', {
             'reason': moderation_result['explanation'],
@@ -30,7 +36,8 @@ def handle_send_message(data):
         }, room=sender_id)
         return
     
-    new_message, error = send_message_helper(sender_id, recipient_id, content)
+    # Await sending the message
+    new_message, error = await send_message_helper(sender_id, recipient_id, content)
     if error:
         emit('message_error', {'error': error}, room=sender_id)
         return
@@ -47,35 +54,33 @@ def handle_send_message(data):
     emit('new_message', message_data, room=sender_id)
 
 @socketio.on('join')
-def on_join(data):
+async def on_join(data):
     username = data['username']
     room = data['room']
     join_room(room)
     emit('status', {'msg': f'{username} has entered the room.'}, room=room)
 
 @socketio.on('leave')
-def on_leave(data):
+async def on_leave(data):
     username = data['username']
     room = data['room']
     leave_room(room)
     emit('status', {'msg': f'{username} has left the room.'}, room=room)
 
-
-
 def init_mess(socketio):
     @socketio.on('connect')
-    def handle_connect():
+    async def handle_connect():
         if current_user.is_authenticated:
             join_room(str(current_user.id))
             emit('user_connected', {'user_id': current_user.id, 'username': current_user.username})
 
     @socketio.on('disconnect')
-    def handle_disconnect():
+    async def handle_disconnect():
         if current_user.is_authenticated:
             leave_room(str(current_user.id))
             emit('user_disconnected', {'user_id': current_user.id, 'username': current_user.username})
 
-def moderate_content(content):
+async def moderate_content(content):
     prompt = f"""
     Analyze the following message and determine if it follows community guidelines. 
     The message should not contain hate speech, explicit content, or violate user privacy.
@@ -90,11 +95,11 @@ def moderate_content(content):
     Message: "{content}"
     """
     
-    response = model.generate_content(prompt)
+    response = await model.generate_content(prompt)
     result = eval(response.text)
     return result
 
-def generate_ai_reply(content):
+async def generate_ai_reply(content):
     prompt = f"""
     Given the following message, suggest a thoughtful and engaging reply:
     "{content}"
@@ -102,20 +107,10 @@ def generate_ai_reply(content):
     Do not use asterisks or any other formatting. The reply should be ready to send as-is.
     """
     
-    response = model.generate_content(prompt)
+    response = await model.generate_content(prompt)
     return emojis.emojize(response.text, language='alias')
 
-def get_messages(current_user_id, recipient_id, page=1, per_page=20):
-    messages = Message.query.filter(
-        or_(
-            (Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id),
-            (Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id)
-        )
-    ).order_by(Message.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
-
-    return messages.items
-
-def send_message_helper(sender_id, recipient_id, content):
+async def send_message_helper(sender_id, recipient_id, content):
     new_message = Message(
         sender_id=sender_id,
         recipient_id=recipient_id,
@@ -127,7 +122,17 @@ def send_message_helper(sender_id, recipient_id, content):
 
     return new_message, None
 
-def get_user_conversations(user_id):
+async def get_messages(current_user_id, recipient_id, page=1, per_page=20):
+    messages = Message.query.filter(
+        or_(
+            (Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id),
+            (Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id)
+        )
+    ).order_by(Message.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    return messages.items
+
+async def get_user_conversations(user_id):
     subquery = db.session.query(
         db.func.max(Message.id).label('max_id'),
         case(
@@ -158,7 +163,7 @@ def get_user_conversations(user_id):
 
     return conversations
 
-def search_messages(current_user_id, recipient_id, query):
+async def search_messages(current_user_id, recipient_id, query):
     messages = Message.query.filter(
         or_(
             (Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id),
@@ -169,7 +174,7 @@ def search_messages(current_user_id, recipient_id, query):
 
     return messages
 
-def suggest_conversation_starters(user_id, other_user_id):
+async def suggest_conversation_starters(user_id, other_user_id):
     user = User.query.get(user_id)
     other_user = User.query.get(other_user_id)
 
@@ -182,10 +187,14 @@ def suggest_conversation_starters(user_id, other_user_id):
     Provide engaging and relevant conversation starters that could help these users connect.
     """
 
-    response = model.generate_content(prompt)
+    response = await model.generate_content(prompt)
     return response.text.split('\n')
 
-def get_available_users():
+async def get_available_users():
     users = User.query.filter(User.id != current_user.id).all()
     available_users = [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
     return available_users
+
+if __name__ == '__main__':
+    # Run the app with eventlet
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

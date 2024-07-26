@@ -2,43 +2,48 @@ import json
 import logging
 import re
 import os
-from flask import Flask, abort, render_template, request, jsonify, redirect, url_for, flash
+import emojis
+from flask import Flask, abort, render_template, request, jsonify, redirect, url_for, flash, session
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
-from flask import Blueprint
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-import requests
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import google.generativeai as genai
 from dotenv import load_dotenv
-from prof import profile as profile_blueprint
-import datetime
-from mess import  get_available_users, init_mess, get_messages, send_message_helper, get_user_conversations, search_messages, suggest_conversation_starters
-from flask_migrate import Migrate
-from flask_login import current_user
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from sqlalchemy import or_, case
+#from mess import generate_ai_reply
 from models import Comment, Follow, Like, Message, Notification, User, Post, db
-from sqlalchemy.exc import SQLAlchemyError
-
-
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from models import db  # Import the db instance from models
-import os
 
 load_dotenv()
 app = Flask(__name__)
 
 # Configure your database URI
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///social_media.db'  # Change this as needed
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///social_media.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.urandom(24).hex()
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max-limit
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # Set session to last for 30 days
+
+db.init_app(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+socketio = SocketIO(app)
+
+genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+model = genai.GenerativeModel('gemini-pro')
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 
 # Initialize the SQLAlchemy instance with the Flask app
-db.init_app(app)
+#db.init_app(app)
 
 # Initialize Flask-Migrate
 migrate = Migrate(app, db)
@@ -47,21 +52,15 @@ migrate = Migrate(app, db)
 from prof import profile as profile_blueprint  # Import your blueprint
 app.register_blueprint(profile_blueprint)
 
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
-socketio = SocketIO(app)
 
-# Configure the Gemini model
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('gemini-pro')
 
 # Database models
 
 
 
-@login_manager.user_loader
+""" @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return User.query.get(int(user_id)) """
 
 def is_valid_input(text):
     return text and len(text.strip()) > 0
@@ -250,7 +249,7 @@ def submit_post():
     
     return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
     
-@login_required
+
 def chat():
     if request.method == 'POST':
         user_input = request.form.get('user_input', '')
@@ -314,14 +313,14 @@ def delete_comment(comment_id):
     db.session.delete(comment)
     db.session.commit()
     return jsonify({'status': 'success', 'message': 'Comment deleted successfully'})
-#@app.route('/messages', methods=['GET', 'POST'])
-from flask import render_template, request, jsonify, redirect, url_for
-from flask_login import login_required, current_user
+
+
 
 @app.route('/conversations')
 
 def conversations():
     return redirect(url_for('messages'))
+
 
 @app.route('/messages/', defaults={'recipient_id': None})
 @app.route('/messages/<int:recipient_id>')
@@ -352,11 +351,17 @@ def api_conversation_starters(other_user_id):
     return jsonify({'starters': starters})
 
 @app.route('/send_message/<int:recipient_id>', methods=['POST'])
-
+@login_required
 def send_message_route(recipient_id):
     content = request.form['content']
     media = request.files.get('media')
     media_url = None
+    ai_response_flag = request.form.get('ai_response', 'false').lower() == 'true'
+    
+    moderation_result = moderate_content(content)
+    if moderation_result['violates_guidelines']:
+        flash('Content violates guidelines: ' + moderation_result['explanation'])
+        return redirect(url_for('messages', recipient_id=recipient_id))
     
     if media and allowed_file(media.filename):
         filename = secure_filename(media.filename)
@@ -364,58 +369,207 @@ def send_message_route(recipient_id):
         media.save(media_path)
         media_url = url_for('static', filename=f'uploads/{filename}')
     
-    new_message = Message(content=content, sender_id=current_user.id, recipient_id=recipient_id, media_url=media_url)
-    db.session.add(new_message)
-    db.session.commit()
+    new_message, error = send_message_helper(current_user.id, recipient_id, content, media_url)
     
-    socketio.emit('new_message', {
+    if error:
+        flash('Error sending message: ' + error)
+        return redirect(url_for('messages', recipient_id=recipient_id))
+    
+    message_data = {
         'id': new_message.id,
         'sender_id': current_user.id,
         'recipient_id': recipient_id,
         'content': content,
         'media_url': media_url,
         'timestamp': new_message.timestamp.isoformat()
-    }, room=str(recipient_id))
+    }
     
-    # Redirect or return a simple response
+    socketio.emit('new_message', message_data, room=str(recipient_id))
+    socketio.emit('new_message', message_data, room=str(current_user.id))
+    
+    # Generate AI reply if the flag is set
+    if ai_response_flag:
+        ai_reply = generate_ai_reply(content)
+        if ai_reply:
+            ai_message, _ = send_message_helper(recipient_id, current_user.id, ai_reply)
+            ai_message_data = {
+                'id': ai_message.id,
+                'sender_id': recipient_id,
+                'recipient_id': current_user.id,
+                'content': ai_reply,
+                'timestamp': ai_message.timestamp.isoformat()
+            }
+            socketio.emit('new_message', ai_message_data, room=str(current_user.id))
+    
     return redirect(url_for('messages', recipient_id=recipient_id))
+import emojis
+
+def generate_ai_reply(content):
+    prompt = f"""
+    Given the following message, suggest a thoughtful and engaging reply:
+    "{content}"
+    Keep the reply concise and natural-sounding. Include appropriate emojis to make the message more engaging.
+    Do not use asterisks or any other formatting. The reply should be ready to send as-is.
+    """
+    
+    # Call the model's generate_content function synchronously
+    response = model.generate_content(prompt)
+    
+    # Use the emojis library to add emojis to the response text
+    return emojis.encode(response.text, language='alias')
+
+
+@app.route('/generate_ai_reply/<int:recipient_id>', methods=['GET'])
+@login_required
+def api_generate_ai_reply(recipient_id):
+    # Fetch the latest message content from the chat with the recipient
+    last_message = Message.query.filter_by(recipient_id=recipient_id, sender_id=current_user.id).order_by(Message.timestamp.desc()).first()
+    
+    if last_message:
+        content = last_message.content
+        ai_reply = generate_ai_reply(content)
+        
+        # Send the AI reply to the chat
+        new_message, error = send_message_helper(current_user.id, recipient_id, ai_reply)
+        if error:
+            return jsonify({'error': error}), 400
+        
+        message_data = {
+            'id': new_message.id,
+            'sender_id': current_user.id,
+            'recipient_id': recipient_id,
+            'content': ai_reply,
+            'timestamp': new_message.timestamp.isoformat()
+        }
+        
+        # Broadcast the AI message to both users
+        socketio.emit('new_message', message_data, room=str(recipient_id))
+        socketio.emit('new_message', message_data, room=str(current_user.id))
+        
+        return jsonify({'reply': ai_reply}), 200
+    else:
+        return jsonify({'error': 'No previous message found to base AI reply on'}), 400
 
 def send_message_helper(sender_id, recipient_id, content, media_url=None):
     try:
-        # Check if content is empty
         if not content.strip():
             return None, "Message content cannot be empty."
 
-        # Create a new message
         new_message = Message(
             sender_id=sender_id,
             recipient_id=recipient_id,
             content=content,
-            media_url=media_url
+            media_url=media_url,
+            timestamp=datetime.utcnow()
         )
 
-        # Add the new message to the database
         db.session.add(new_message)
         db.session.commit()
 
-        # If everything went well, return the message and no error
         return new_message, None
 
-    except SQLAlchemyError as e:
-        # If there's a database error, rollback the session
-        db.session.rollback()
-        return None, f"Database error: {str(e)}"
-
     except Exception as e:
-        # For any other unexpected errors
-        return None, f"An unexpected error occurred: {str(e)}"
+        db.session.rollback()
+        return None, f"An error occurred: {str(e)}"
+    
+def get_messages(current_user_id, recipient_id, page=1, per_page=20):
+    messages = db.session.query(Message, User).join(User, Message.sender_id == User.id).filter(
+        or_(
+            (Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id),
+            (Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id)
+        )
+    ).order_by(Message.timestamp.asc()).paginate(page=page, per_page=per_page, error_out=False)
 
+    return messages.items
+@app.route('/delete_chat_history/<int:recipient_id>', methods=['POST'])
+@login_required
+def delete_chat_history(recipient_id):
+    try:
+        # Delete messages where the current user is either the sender or the recipient
+        Message.query.filter(
+            or_(
+                (Message.sender_id == current_user.id) & (Message.recipient_id == recipient_id),
+                (Message.sender_id == recipient_id) & (Message.recipient_id == current_user.id)
+            )
+        ).delete(synchronize_session=False)
+
+        # Commit the changes to the database
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "Chat history deleted successfully"}), 200
+    except Exception as e:
+        # If an error occurs, rollback the changes
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+def get_available_users():
+    users = User.query.filter(User.id != current_user.id).all()
+    return [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
+
+def suggest_conversation_starters(user_id, other_user_id):
+    user = User.query.get(user_id)
+    other_user = User.query.get(other_user_id)
+    prompt = f"""
+        Suggest 3 conversation starters for two users based on their profiles:
+        
+        User 1: {user.bio}
+        User 2: {other_user.bio}
+        
+        Provide engaging and relevant conversation starters that could help these users connect.
+        """
+
+    response = model.generate_content(prompt)
+    return response.text.split('\n')
 
 @app.route('/notifications')
-
+@login_required
 def notifications():
     notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
     return render_template('notifications.html', notifications=notifications)
+
+def create_notification(user_id, content):
+    new_notification = Notification(user_id=user_id, content=content)
+    db.session.add(new_notification)
+    db.session.commit()
+    socketio.emit('new_notification', {'user_id': user_id, 'content': content}, room=str(user_id))
+
+    
+def get_messages(current_user_id, recipient_id, page=1, per_page=20):
+    messages = db.session.query(Message, User).join(User, Message.sender_id == User.id).filter(
+        or_(
+            (Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id),
+            (Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id)
+        )
+    ).order_by(Message.timestamp.asc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    return messages.items
+
+
+def get_available_users():
+    users = User.query.filter(User.id != current_user.id).all()
+    return [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
+
+def suggest_conversation_starters(user_id, other_user_id):
+    user = User.query.get(user_id)
+    other_user = User.query.get(other_user_id)
+    prompt = f"""
+        Suggest 3 conversation starters for two users based on their profiles:
+        
+        User 1: {user.bio}
+        User 2: {other_user.bio}
+        
+        Provide engaging and relevant conversation starters that could help these users connect.
+        """
+
+    response = model.generate_content(prompt)
+    return response.text.split('\n')
+
+
+""" @app.route('/notifications')
+@login_required
+def notifications():
+    notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
+    return render_template('notifications.html', notifications=notifications) """
 
 def create_notification(user_id, content):
     new_notification = Notification(user_id=user_id, content=content)
@@ -452,6 +606,11 @@ def handle_disconnect():
     if current_user.is_authenticated:
         leave_room(str(current_user.id))
 
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(days=30)
+    
 def moderate_content(content):
     prompt = f"""
     Analyze the following content for appropriateness on a social media platform. Please take into account common community guidelines which may include but are not limited to: harassment, hate speech, violence, explicit content, misinformation, and spam.
