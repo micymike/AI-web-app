@@ -87,7 +87,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/logout')
-@login_required
+
 def logout():
     logout_user()
     return redirect(url_for('login'))
@@ -104,14 +104,14 @@ def register():
     return render_template('register.html')
 
 @app.route('/profile/<username>')
-@login_required
+
 def profile(username):
     user = User.query.filter_by(username=username).first_or_404()
     posts = Post.query.filter_by(user_id=user.id).order_by(Post.timestamp.desc()).all()
     return render_template('profile.html', user=user, posts=posts)
 
 @app.route('/edit_profile', methods=['GET', 'POST'])
-@login_required
+
 def edit_profile():
     if request.method == 'POST':
         current_user.bio = request.form['bio']
@@ -127,7 +127,7 @@ def edit_profile():
     return render_template('edit_profile.html')
 
 @app.route('/follow/<username>')
-@login_required
+
 def follow(username):
     user = User.query.filter_by(username=username).first()
     if user is None:
@@ -142,7 +142,7 @@ def follow(username):
     return redirect(url_for('profile', username=username))
 
 @app.route('/unfollow/<username>')
-@login_required
+
 def unfollow(username):
     user = User.query.filter_by(username=username).first()
     if user is None:
@@ -166,7 +166,6 @@ genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
 
 @app.route('/post', methods=['GET', 'POST'])
-@login_required
 def post():
     if request.method == 'POST':
         user_input = request.form.get('content', '').strip()
@@ -231,7 +230,7 @@ def post():
     return render_template('create_post.html')
 
 @app.route('/submit_post', methods=['POST'])
-@login_required
+
 def submit_post():
     content = request.form.get('content', '').strip()
     if not content:
@@ -267,7 +266,7 @@ def chat():
 
     return render_template('index.html')
 @app.route('/like/<int:post_id>', methods=['POST'])
-@login_required
+
 def like_post(post_id):
     post = Post.query.get_or_404(post_id)
     like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
@@ -283,7 +282,7 @@ def like_post(post_id):
         return jsonify({'status': 'liked'})
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
-@login_required
+
 def add_comment(post_id):
     content = request.form['content']
     new_comment = Comment(content=content, user_id=current_user.id, post_id=post_id)
@@ -294,7 +293,7 @@ def add_comment(post_id):
     return redirect(url_for('index'))
 
 @app.route('/delete_post/<int:post_id>', methods=['DELETE'])
-@login_required
+
 def delete_post(post_id):
     post = Post.query.get_or_404(post_id)
     if post.author != current_user:
@@ -307,7 +306,7 @@ def delete_post(post_id):
 
 
 @app.route('/delete_comment/<int:comment_id>', methods=['POST'])
-@login_required
+
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
     if comment.author != current_user:
@@ -320,13 +319,13 @@ from flask import render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 
 @app.route('/conversations')
-@login_required
+
 def conversations():
     return redirect(url_for('messages'))
 
 @app.route('/messages/', defaults={'recipient_id': None})
 @app.route('/messages/<int:recipient_id>')
-@login_required
+
 def messages(recipient_id):
     available_users = get_available_users()
     if recipient_id is None and available_users:
@@ -345,13 +344,13 @@ def messages(recipient_id):
 
 
 @app.route('/api/conversation_starters/<int:other_user_id>')
-@login_required
+
 def api_conversation_starters(other_user_id):
     starters = suggest_conversation_starters(current_user.id, other_user_id)
     return jsonify({'starters': starters})
 
 @app.route('/send_message/<int:recipient_id>', methods=['POST'])
-@login_required
+
 def send_message_route(recipient_id):
     content = request.form['content']
     media = request.files.get('media')
@@ -411,7 +410,7 @@ def send_message_helper(sender_id, recipient_id, content, media_url=None):
 
 
 @app.route('/notifications')
-@login_required
+
 def notifications():
     notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
     return render_template('notifications.html', notifications=notifications)

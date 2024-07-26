@@ -17,7 +17,7 @@ Technology: Flask (Python)
 Features: Manages user data, posts, comments, likes, and AI interactions.
 Database:
 
-System: PostgreSQL (or another chosen database)
+System: SQLite 
 Schema: Stores user profiles, posts, comments, likes, and other relevant data.
 AI Integration:
 
@@ -27,8 +27,8 @@ Function: Checks for violations of Meta community guidelines, supports AI chat, 
 Prerequisites
 Software:
 Python 3.x
-Node.js and npm
-PostgreSQL (or alternative database system)
+Pypi
+SQLite
 Installation
 Clone the Repository:
 
