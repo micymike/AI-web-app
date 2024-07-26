@@ -325,9 +325,10 @@ def conversations():
 
 @app.route('/messages/', defaults={'recipient_id': None})
 @app.route('/messages/<int:recipient_id>')
-
+@login_required
 def messages(recipient_id):
     available_users = get_available_users()
+    
     if recipient_id is None and available_users:
         recipient_id = available_users[0]['id']
     
@@ -341,6 +342,7 @@ def messages(recipient_id):
                            recipient=recipient, 
                            available_users=available_users,
                            current_user=current_user)
+
 
 
 @app.route('/api/conversation_starters/<int:other_user_id>')
