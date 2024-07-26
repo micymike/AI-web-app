@@ -104,36 +104,42 @@
     
             <div class="w-full sm:w-3/4">
                 {% if current_user.is_authenticated %}
-                    <div id="post-form" class="bg-white shadow rounded-lg p-4 mb-4">
-                        <form id="create-post-form" action="{{ url_for('post') }}" method="post" enctype="multipart/form-data">
-                            <textarea id="post-content" name="content" placeholder="What's on your mind?" class="w-full p-2 border rounded mb-2" rows="3">{{ original_content if original_content else '' }}</textarea>
-                            <div id="ai-suggestions" class="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded {{ 'hidden' if not ai_response else '' }}">
-                                <p>{{ ai_response['explanation'] }}</p>
-                                <ul id="ai-suggestion-list">
-                                    {% if ai_response %}
-                                        {% for suggestion in ai_response['suggestions'] %}
-                                            <li class="text-yellow-700 cursor-pointer hover:text-yellow-800">{{ suggestion }}</li>
-                                        {% endfor %}
-                                    {% endif %}
-                                </ul>
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                <input type="file" name="media" id="media" class="hidden" accept="image/*,video/*">
-                                <label for="media" class="btn btn-primary flex items-center space-x-2 py-2 px-4 rounded bg-blue-600 hover:bg-blue-700 transition duration-300 cursor-pointer">
-                                    <i class="fas fa-image"></i>
-                                    <span>Add Media</span>
-                                </label>
-                                <a href="https://content-gen-kw4y.onrender.com" target="_blank" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300">
-                                    <i class="fa-brands fa-bots"></i>
-                                    Content Generator
-                                </a>
-                                <button type="submit" class="btn btn-primary flex items-center space-x-2 py-2 px-4 rounded bg-blue-500 hover:bg-green-700 transition duration-300">
-                                    <i class="fas fa-paper-plane"></i>
-                                    Post
-                                </button>
-                            </div>
-                        </form>
+                <div id="post-form" class="bg-white shadow rounded-lg p-4 mb-4">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="mb-4 p-3 {% if category == 'warning' %}bg-yellow-100 border border-yellow-400{% elif category == 'success' %}bg-green-100 border border-green-400{% endif %} rounded">
+                                    <p>{{ message }}</p>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                
+                    <div id="moderation-feedback" class="hidden mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded">
+                        <p id="moderation-explanation" class="mb-2"></p>
+                        <div id="word-suggestions" class="flex flex-wrap gap-2"></div>
                     </div>
+                
+                    <form id="create-post-form" method="POST" action="{{ url_for('post') }}" enctype="multipart/form-data">
+                        <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?"></textarea>
+                        
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <input type="file" name="media" accept="image/*,video/*" class="hidden" id="media-upload">
+                            <label for="media-upload" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-blue-600 hover:bg-blue-700 transition duration-300 cursor-pointer">
+                                <i class="fas fa-image"></i>
+                                <span>Add Media</span>
+                            </label>
+                            <a href="https://content-gen-kw4y.onrender.com" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300" target="_blank">
+                                <i class="fas fa-magic"></i>
+                                <span>Content Generator</span>
+                            </a>
+                            <button type="submit" class="btn btn-primary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-blue-600 hover:bg-blue-700 transition duration-300">
+                                <i class="fas fa-paper-plane"></i>
+                                <span>Post</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
                 {% endif %}
     
                 {% for post in all_posts %}
@@ -184,55 +190,51 @@
 
     <script>
         
-        document.addEventListener('DOMContentLoaded', function () {
-            const createPostForm = document.getElementById('create-post-form');
-            const postContent = document.getElementById('post-content');
-            const aiSuggestions = document.getElementById('ai-suggestions');
-            const aiExplanation = document.getElementById('ai-explanation');
-            const aiSuggestionList = document.getElementById('ai-suggestion-list');
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('create-post-form');
+            const contentTextarea = document.getElementById('post-content');
+            const moderationFeedback = document.getElementById('moderation-feedback');
+            const moderationExplanation = document.getElementById('moderation-explanation');
+            const wordSuggestions = document.getElementById('word-suggestions');
         
-            // Function to handle form submission
-            createPostForm.addEventListener('submit', function (e) {
+            form.addEventListener('submit', function(e) {
                 e.preventDefault();
-                const formData = new FormData(this);
-        
-                fetch('/post', {
+                
+                fetch('{{ url_for("post") }}', {
                     method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    // Handle redirection if returned from server
-                    if (response.redirected) {
-                        window.location.href = response.url;
-                        return;
+                    body: new FormData(form),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
-                    return response.json();
                 })
+                .then(response => response.json())
                 .then(data => {
-                    if (data && data.violates_guidelines) {
-                        aiExplanation.textContent = data.explanation;
-                        aiSuggestionList.innerHTML = '';
-                        data.suggestions.forEach(suggestion => {
-                            const li = document.createElement('li');
-                            li.className = 'text-yellow-700 cursor-pointer hover:text-yellow-800';
-                            li.textContent = suggestion;
-                            li.onclick = function() {
-                                postContent.value = suggestion;
-                                aiSuggestions.classList.add('hidden');
-                            };
-                            aiSuggestionList.appendChild(li);
-                        });
-                        aiSuggestions.classList.remove('hidden');
-                    } else {
-                        // Post was successful, refresh the page or update the posts list
-                        location.reload();
+                    if (data.violates_guidelines) {
+                        moderationFeedback.classList.remove('hidden');
+                        moderationExplanation.innerHTML = `<i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>${data.explanation}`;
+                        wordSuggestions.innerHTML = data.suggestions.map(suggestion => 
+                            `<button class="suggestion-btn bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition duration-300">
+                                <i class="fas fa-exchange-alt mr-1"></i>${suggestion}
+                            </button>`
+                        ).join('');
+                    } else if (data.success) {
+                        window.location.reload();
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while processing your post. Please try again.');
+                    form.submit(); // Fallback to regular form submission
                 });
             });
+        
+            wordSuggestions.addEventListener('click', function(e) {
+                if (e.target.closest('.suggestion-btn')) {
+                    const selectedWord = e.target.closest('.suggestion-btn').textContent.trim();
+                    contentTextarea.value = contentTextarea.value.replace(/\S+$/, selectedWord);
+                    moderationFeedback.classList.add('hidden');
+                }
+            });
+        });
         
             // Function to handle "like" button clicks
             window.likePost = function(postId) {
@@ -265,7 +267,7 @@
                         });
                 }
             };
-        });
+        
         
         </script>
         

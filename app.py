@@ -179,77 +179,69 @@ logger = logging.getLogger(__name__)
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
 
-@app.route('/post', methods=['GET', 'POST'])
-@login_required
+
+logger = logging.getLogger(__name__)
+
+# Configure the Gemini model
+genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+model = genai.GenerativeModel('gemini-pro')
+
+@app.route('/post', methods=['POST'])
 def post():
-    if request.method == 'POST':
-        user_input = request.form.get('content', '').strip()
+    user_input = request.form.get('content', '').strip()
+    if not user_input:
+        return jsonify({'error': 'Post content cannot be empty!'}), 400
 
-        if not user_input:
-            flash('Post content cannot be empty!', 'warning')
-            return redirect(url_for('index'))
-
-        # Use Gemini model to check for community guideline violations
-        prompt = f"""
-        Analyze the following text for any violations of community guidelines. 
-        If violations are found, provide an explanation and suggest alternative wordings.
-        Text to analyze: "{user_input}"
+    # Use Gemini model to check for community guideline violations
+    prompt = f"""
+    Analyze the following text for any violations of community guidelines. 
+    If violations are found, provide a friendly explanation and suggest 3 alternative wordings.
+    Make the suggestions fun and engaging.
+    Text to analyze: "{user_input}"
+    
+    Respond in the following JSON format:
+    {{
+        "violates_guidelines": boolean,
+        "explanation": "string",
+        "suggestions": ["string"]
+    }}
+    """
+    try:
+        response = model.generate_content(prompt)
+        logger.debug(f"Gemini response text: {response.text}")
         
-        Respond in the following JSON format:
-        {{
-            "violates_guidelines": boolean,
-            "explanation": "string",
-            "suggestions": ["string"]
-        }}
-        """
-
-        try:
-            response = model.generate_content(prompt)
-            logger.debug(f"Raw Gemini response: {response}")
-            logger.debug(f"Gemini response text: {response.text}")
-            
-            # Extract JSON from the response
-            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
-            if json_match:
-                response_data = json.loads(json_match.group(0))
-            else:
-                raise ValueError("No valid JSON found in the response")
-            
-            logger.debug(f"Parsed response data: {response_data}")
-
-            if response_data.get('violates_guidelines', False):
-                explanation = response_data.get('explanation', 'No explanation provided.')
-                suggestions = response_data.get('suggestions', [])
-
-                ai_response = {
-                    'explanation': explanation,
-                    'suggestions': suggestions
-                }
-
-                return render_template('index.html', original_content=user_input, ai_response=ai_response)
-
-            # If we've reached this point, the content is okay to post
-            new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
-            
-            if 'media' in request.files:
-                file = request.files['media']
-                if file and allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    file.save(os.path.join('static/uploads', filename))
-                    new_post.media_url = filename
-            
-            db.session.add(new_post)
-            db.session.commit()
-            flash('Your post has been created!', 'success')
-
-        except Exception as e:
-            logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
-            flash(f'An error occurred while processing your post. Please try again.', 'danger')
+        # Extract JSON from the response
+        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if json_match:
+            response_data = json.loads(json_match.group(0))
+        else:
+            raise ValueError("No valid JSON found in the response")
         
-        return redirect(url_for('index'))
+        logger.debug(f"Parsed response data: {response_data}")
+        if response_data.get('violates_guidelines', False):
+            return jsonify({
+                'violates_guidelines': True,
+                'explanation': response_data.get('explanation', 'No explanation provided.'),
+                'suggestions': response_data.get('suggestions', [])
+            }), 200
 
-    return render_template('index.html', original_content=user_input, ai_response=ai_response)
-
+        # If we've reached this point, the content is okay to post
+        new_post = Post(content=user_input, timestamp=datetime.utcnow())
+        
+        if 'media' in request.files:
+            file = request.files['media']
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                new_post.media_url = filename
+        
+        db.session.add(new_post)
+        db.session.commit()
+        
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
+        return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
 
 @app.route('/submit_post', methods=['POST'])
 
