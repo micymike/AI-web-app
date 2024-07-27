@@ -187,6 +187,7 @@ genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
 
 @app.route('/post', methods=['POST'])
+@login_required
 def post():
     user_input = request.form.get('content', '').strip()
     if not user_input:
@@ -213,56 +214,104 @@ def post():
         # Extract JSON from the response
         json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
         if json_match:
-            response_data = json.loads(json_match.group(0))
+            response_json = json_match.group(0)
+            try:
+                response_data = json.loads(response_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSONDecodeError: {str(e)} - Response: {response_json}")
+                return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
         else:
             raise ValueError("No valid JSON found in the response")
         
         logger.debug(f"Parsed response data: {response_data}")
+
         if response_data.get('violates_guidelines', False):
             return jsonify({
                 'violates_guidelines': True,
                 'explanation': response_data.get('explanation', 'No explanation provided.'),
                 'suggestions': response_data.get('suggestions', [])
             }), 200
-
-        # If we've reached this point, the content is okay to post
-        new_post = Post(content=user_input, timestamp=datetime.utcnow())
+        
+        # If no violations, create the post
+        new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
         
         if 'media' in request.files:
             file = request.files['media']
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
                 new_post.media_url = filename
         
         db.session.add(new_post)
         db.session.commit()
         
-        return jsonify({'success': True}), 200
+        return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
+
     except Exception as e:
         logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
         return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
-
 @app.route('/submit_post', methods=['POST'])
-
+@login_required
 def submit_post():
     content = request.form.get('content', '').strip()
     if not content:
         return jsonify({'error': 'Post content cannot be empty!'}), 400
 
-    new_post = Post(content=content, user_id=current_user.id, timestamp=datetime.utcnow())
+    # Use Gemini model to check for community guideline violations
+    prompt = f"""
+    Analyze the following text for any violations of community guidelines. 
+    If violations are found, provide a friendly explanation and suggest 3 alternative wordings.
+    Make the suggestions fun and engaging.
+    Text to analyze: "{content}"
     
-    if 'media' in request.files:
-        file = request.files['media']
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            new_post.media_url = filename
-    
-    db.session.add(new_post)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
+    Respond in the following JSON format:
+    {{
+        "violates_guidelines": boolean,
+        "explanation": "string",
+        "suggestions": ["string"]
+    }}
+    """
+    try:
+        response = model.generate_content(prompt)
+        logger.debug(f"Gemini response text: {response.text}")
+        
+        # Extract JSON from the response
+        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if json_match:
+            response_data = json.loads(json_match.group(0))
+        else:
+            raise ValueError("No valid JSON found in the response")
+        
+        logger.debug(f"Parsed response data: {response_data}")
+
+        if response_data.get('violates_guidelines', False):
+            return jsonify({
+                'violates_guidelines': True,
+                'explanation': response_data.get('explanation', 'No explanation provided.'),
+                'suggestions': response_data.get('suggestions', [])
+            }), 200
+        
+        # If no violations, create the post
+        new_post = Post(content=content, user_id=current_user.id, timestamp=datetime.utcnow())
+        
+        if 'media' in request.files:
+            file = request.files['media']
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                new_post.media_url = filename
+        
+        db.session.add(new_post)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
+
+    except Exception as e:
+        logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
+        return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
+
     
 
 def chat():

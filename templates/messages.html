@@ -18,42 +18,64 @@
             background-size: 400% 400%;
             animation: gradientBG 15s ease infinite;
         }
-        .chat-bubble {
-            max-width: 70%;
-            word-wrap: break-word;
-            margin-bottom: 8px;
-            line-height: 20px;
-            padding: 8px 16px;
-            border-radius: 18px;
-            display: inline-block;
-            position: relative;
-        }
-        .chat-bubble.left {
-            background: #e0e0e0;
-            align-self: flex-start;
-        }
-        .chat-bubble.right {
-            background: #3b82f6;
-            color: white;
-            align-self: flex-end;
-        }
-        .chat-bubble::after {
-            content: "";
-            position: absolute;
-            border-style: solid;
-            border-width: 8px 8px 0;
-            border-color: #3b82f6 transparent;
-            top: 50%;
-            transform: translateY(-50%);
-            left: -16px;
-            border-color: #e0e0e0 transparent;
-            right: -16px;
-        }
-        .chat-bubble.right::after {
-            left: auto;
-            right: -16px;
-            border-color: transparent transparent #3b82f6;
-        }
+       /* Chat Bubble Container */
+.chat-bubble {
+    max-width: 70%;
+    word-wrap: break-word;
+    margin-bottom: 8px;
+    line-height: 1.4;
+    padding: 12px 20px;
+    border-radius: 16px;
+    display: inline-block;
+    position: relative;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chat-bubble:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* Left Bubble */
+.chat-bubble.left {
+    background: #f0f0f0;
+    color: #333;
+    align-self: flex-start;
+}
+
+.chat-bubble.left::after {
+    content: "";
+    position: absolute;
+    border-style: solid;
+    border-width: 8px 8px 0;
+    border-color: #f0f0f0 transparent;
+    top: 50%;
+    transform: translateY(-50%);
+    left: -16px;
+    border-color: #f0f0f0 transparent;
+}
+
+/* Right Bubble */
+.chat-bubble.right {
+    background: #3b82f6;
+    color: #ffffff;
+    align-self: flex-end;
+}
+
+.chat-bubble.right::after {
+    content: "";
+    position: absolute;
+    border-style: solid;
+    border-width: 8px 8px 0;
+    border-color: #3b82f6 transparent;
+    top: 50%;
+    transform: translateY(-50%);
+    right: -16px;
+    border-color: #3b82f6 transparent;
+}
+
         .message-input {
             border: none;
             border-radius: 20px;
