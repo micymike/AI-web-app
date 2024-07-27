@@ -75,10 +75,16 @@ def index():
     if current_user.is_authenticated:
         all_users = User.query.all()
         all_posts = Post.query.order_by(Post.timestamp.desc()).all()
+        
+        # Add comment counts to each post
+        for post in all_posts:
+            post.comment_count = post.comments.count()
     else:
         all_users = []
         all_posts = []
+
     return render_template('index.html', all_users=all_users, all_posts=all_posts)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -329,31 +335,42 @@ def chat():
 
     return render_template('index.html')
 @app.route('/like/<int:post_id>', methods=['POST'])
-
+@login_required
 def like_post(post_id):
     post = Post.query.get_or_404(post_id)
-    like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
-    if like:
-        db.session.delete(like)
-        db.session.commit()
-        return jsonify({'status': 'unliked'})
+    if current_user not in post.likes:
+        post.likes.append(current_user)
     else:
-        new_like = Like(user_id=current_user.id, post_id=post_id)
-        db.session.add(new_like)
-        db.session.commit()
-        create_notification(post.author.id, f'{current_user.username} liked your post.')
-        return jsonify({'status': 'liked'})
+        post.likes.remove(current_user)
+    db.session.commit()
+    return jsonify({'likes_count': len(post.likes), 'is_liked': current_user in post.likes})
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
-
+@login_required
 def add_comment(post_id):
-    content = request.form['content']
-    new_comment = Comment(content=content, user_id=current_user.id, post_id=post_id)
-    db.session.add(new_comment)
-    db.session.commit()
     post = Post.query.get_or_404(post_id)
-    create_notification(post.author.id, f'{current_user.username} commented on your post.')
-    return redirect(url_for('index'))
+    content = request.json.get('content')
+    if content:
+        comment = Comment(content=content, author=current_user, post=post)
+        db.session.add(comment)
+        db.session.commit()
+        return jsonify({
+            'id': comment.id,
+            'content': comment.content,
+            'author': comment.author.username,
+            'timestamp': comment.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        }), 201
+    return jsonify({'error': 'Comment content is required'}), 400
+
+@app.route('/comment/<int:comment_id>', methods=['DELETE'])
+@login_required
+def delete_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    if comment.author != current_user:
+        return jsonify({'error': 'Unauthorized'}), 403
+    db.session.delete(comment)
+    db.session.commit()
+    return jsonify({'message': 'Comment deleted successfully'}), 200
 
 @app.route('/delete_post/<int:post_id>', methods=['DELETE'])
 
@@ -368,15 +385,6 @@ def delete_post(post_id):
     return jsonify({'status': 'success', 'message': 'Post deleted successfully'}), 200
 
 
-@app.route('/delete_comment/<int:comment_id>', methods=['POST'])
-
-def delete_comment(comment_id):
-    comment = Comment.query.get_or_404(comment_id)
-    if comment.author != current_user:
-        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
-    db.session.delete(comment)
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Comment deleted successfully'})
 
 
 
@@ -628,12 +636,6 @@ def suggest_conversation_starters(user_id, other_user_id):
     response = model.generate_content(prompt)
     return response.text.split('\n')
 
-
-""" @app.route('/notifications')
-@login_required
-def notifications():
-    notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
-    return render_template('notifications.html', notifications=notifications) """
 
 def create_notification(user_id, content):
     new_notification = Notification(user_id=user_id, content=content)

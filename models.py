@@ -59,8 +59,12 @@ class Post(db.Model):
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(EAT))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     media_url = db.Column(db.String(120))
-    likes = db.relationship('Like', backref='post', lazy='dynamic', cascade="all, delete-orphan")
-    comments = db.relationship('Comment', backref='post', lazy='dynamic', cascade="all, delete-orphan")
+    likes = db.relationship('User', secondary='post_likes', backref='liked_posts')
+    comments = db.relationship('Comment', backref='post', lazy='dynamic')
+    post_likes = db.Table('post_likes',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('post_id', db.Integer, db.ForeignKey('post.id'), primary_key=True)
+)
 
     def __repr__(self):
         return f'<Post {self.id}>'
@@ -76,12 +80,9 @@ class Like(db.Model):
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(EAT))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False, index=True)
-
-    def __repr__(self):
-        return f'<Comment {self.id}>'
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
