@@ -189,6 +189,12 @@
     </footer>
 
     <script>
+
+                // JavaScript to toggle the menu
+                document.getElementById('menu-toggle').addEventListener('click', function() {
+                    var dropdownMenu = document.getElementById('dropdown-menu');
+                    dropdownMenu.classList.toggle('hidden');
+                });
         
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('create-post-form');

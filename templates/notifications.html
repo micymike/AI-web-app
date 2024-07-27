@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notifications - LuNa</title>
     <link rel="shortcut icon" href="{{ url_for('static', filename='Luna-icon.png') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
@@ -44,14 +45,33 @@
                 <i class="fas fa-globe mr-2"></i>
                 LuNa
             </a>
-            <div>
-                <a href="/" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
-                <a href="/profile/{{ current_user.username }}" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
-                <a href="/messages" class="text-white mr-4 hover:text-gray-200 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
+            <button id="menu-toggle" class="text-white text-2xl md:hidden">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div id="menu" class="hidden md:flex space-x-4">
+                <a href="/" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
+                <a href="/profile/{{ current_user.username }}" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
+                <a href="/messages" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
+                <a href="/notifications" class="text-white hover:text-gray-200 transition duration-300"><i class="fa-solid fa-bell"></i> Notifications</a>
                 <a href="/logout" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
-             </div>
+            </div>
+        </div>
+        <div id="dropdown-menu" class="md:hidden hidden bg-gray-800 text-white absolute w-full mt-2 rounded-lg shadow-lg">
+            <a href="/" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
+            <a href="/profile/{{ current_user.username }}" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
+            <a href="/messages" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
+            <a href="/notifications" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fa-solid fa-bell"></i> Notifications</a>
+            <a href="/logout" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
         </div>
     </nav>
+
+    <script>
+        // JavaScript to toggle the menu
+        document.getElementById('menu-toggle').addEventListener('click', function() {
+            var dropdownMenu = document.getElementById('dropdown-menu');
+            dropdownMenu.classList.toggle('hidden');
+        });
+    </script>
 
     <main class="container mx-auto mt-8">
         <div class="bg-white rounded-lg shadow-md p-8">
@@ -67,9 +87,9 @@
         </div>
     </main>
 
-    <footer class="bg-gray-200 p-4 mt-8 position bottom-0">
-        <div class="container mx-auto text-center text-gray-600">
-            &copy; 2024 SocialApp. All rights reserved.
+    <footer class="bg-gray-800 text-white py-4 mt-8">
+        <div class="container mx-auto text-center">
+            © 2024 LuNa. All rights reserved.
         </div>
     </footer>
 

@@ -230,6 +230,11 @@
     <!-- Add the Socket.IO client library -->
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script>
+                // JavaScript to toggle the menu
+                document.getElementById('menu-toggle').addEventListener('click', function() {
+                    var dropdownMenu = document.getElementById('dropdown-menu');
+                    dropdownMenu.classList.toggle('hidden');
+                });
         const socket = io();
 
         // Show conversation starters on button click
