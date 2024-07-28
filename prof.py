@@ -1,3 +1,4 @@
+
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -6,6 +7,8 @@ from datetime import datetime
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
+from cache_utils import cache
+
 
 load_dotenv()
 
@@ -22,12 +25,13 @@ def allowed_file(filename):
 
 @profile.route('/profile/<username>')
 @login_required
+@cache.cached(timeout=300) 
 def user_profile(username):
     user = User.query.filter_by(username=username).first_or_404()
     posts = Post.query.filter_by(author=user).order_by(Post.timestamp.desc()).all()
-    followers_count = db.session.query(Follow).filter_by(followed_id=user.id).count()
-    following_count = db.session.query(Follow).filter_by(follower_id=user.id).count()
-    posts_count = len(posts)  # Calculate the number of posts here
+    followers_count = user.followers.count()
+    following_count = user.followed.count()
+    posts_count = user.posts.count()
 
     return render_template(
         'profile.html',
@@ -38,7 +42,6 @@ def user_profile(username):
         following_count=following_count,
         posts_count=posts_count
     )
-
 
 @profile.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
@@ -115,42 +118,7 @@ def following(username):
     following = user.following.all()
     return render_template('following.html', user=user, following=following)
 
-@profile.route('/chat', methods=['GET', 'POST'])
-@login_required
-def chat():
-    if request.method == 'POST':
-        user_input = request.form.get('user_input', '')
-        response = model.generate_content(f"User: {user_input}\nAI Assistant: ")
-        ai_response = response.text
-        
-        if "inappropriate" in ai_response.lower() or "offensive" in ai_response.lower():
-            flash('Your input might be inappropriate. Please revise and try again.', 'warning')
-            return redirect(url_for('prof.chat'))
 
-        new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
-        
-        if 'media' in request.files:
-            file = request.files['media']
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                file.save(os.path.join('static/uploads', filename))
-                new_post.media_url = filename
-        
-        db.session.add(new_post)
-        db.session.commit()
-        flash('Your post has been created!', 'success')
-        return redirect(url_for('prof.user_profile', username=current_user.username))
-
-    return render_template('chat.html')
-
-@profile.route('/ai_assistant', methods=['GET', 'POST'])
-@login_required
-def ai_assistant():
-    if request.method == 'POST':
-        user_input = request.form['user_input']
-        response = model.generate_content(f"User: {user_input}\nAI Assistant: ")
-        return render_template('ai_assistant.html', user_input=user_input, ai_response=response.text)
-    return render_template('ai_assistant.html')
 
 @profile.route('/post/<int:post_id>/like', methods=['POST'])
 @login_required
@@ -170,10 +138,4 @@ def unlike_post(post_id):
         db.session.commit()
     return redirect(request.referrer)
 
-@profile.route('/search')
-@login_required
-def search():
-    query = request.args.get('query', '')
-    users = User.query.filter(User.username.ilike(f'%{query}%')).all()
-    posts = Post.query.filter(Post.content.ilike(f'%{query}%')).all()
-    return render_template('search_results.html', users=users, posts=posts, query=query)
+

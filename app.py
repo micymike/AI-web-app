@@ -1,3 +1,4 @@
+
 import json
 import logging
 import re
@@ -14,7 +15,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from sqlalchemy import or_, case
-#from mess import generate_ai_reply
+
 from models import Comment, Follow, Like, Message, Notification, User, Post, db
 
 load_dotenv()
@@ -30,9 +31,14 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # Set session to 
 
 db.init_app(app)
 
+from cache_utils import cache
+
+
+cache.init_app(app)
+
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-socketio = SocketIO(app)
+socketio = SocketIO(app, message_queue='memory://')
 
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
@@ -599,11 +605,10 @@ def notifications():
     notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
     return render_template('notifications.html', notifications=notifications)
 
+from tasks import create_notification as create_notification_task
+
 def create_notification(user_id, content):
-    new_notification = Notification(user_id=user_id, content=content)
-    db.session.add(new_notification)
-    db.session.commit()
-    socketio.emit('new_notification', {'user_id': user_id, 'content': content}, room=str(user_id))
+    create_notification_task.delay(user_id, content)
 
     
 def get_messages(current_user_id, recipient_id, page=1, per_page=20):
@@ -637,11 +642,6 @@ def suggest_conversation_starters(user_id, other_user_id):
     return response.text.split('\n')
 
 
-def create_notification(user_id, content):
-    new_notification = Notification(user_id=user_id, content=content)
-    db.session.add(new_notification)
-    db.session.commit()
-    socketio.emit('new_notification', {'user_id': user_id, 'content': content}, room=str(user_id))
     
 @socketio.on('typing')
 def handle_typing(data):

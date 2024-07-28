@@ -12,3 +12,5 @@ gunicorn
 emojis
 SocketIO
 pytz
+flask-caching
+celery
