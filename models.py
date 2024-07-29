@@ -8,7 +8,8 @@ db = SQLAlchemy()
 profile = Blueprint('models', __name__)
 EAT = timezone(timedelta(hours=3))
 
-# Define the association table for followers
+
+
 followers = db.Table(
     'followers',
     db.Column('follower_id', db.Integer, db.ForeignKey('user.id')),
@@ -46,9 +47,7 @@ class User(UserMixin, db.Model):
             db.session.commit()
 
     def is_following(self, user):
-        return self.followed.filter(
-            followers.c.followed_id == user.id
-        ).count() > 0
+        return self.followed.filter(followers.c.followed_id == user.id).first() is not None
 
     def __repr__(self):
         return f'<User {self.username}>'

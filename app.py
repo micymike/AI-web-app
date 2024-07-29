@@ -13,7 +13,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 import google.generativeai as genai
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from sqlalchemy import or_, case
+from sqlalchemy import func, or_, case
 
 from models import Comment, Follow, Like, Message, Notification, User, Post, db
 
@@ -112,6 +112,34 @@ def replace_usernames(text):
         return f'<a href="{url_for("profile", username=username)}" class="text-blue-500 hover:underline">@{username}</a>'
     
     return re.sub(r'@(\w+)', replace_username, text)
+
+@app.route('/api/user_activity/<int:user_id>')
+@login_required
+def user_activity(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Get posts count for the last 30 days
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    post_counts = db.session.query(
+        func.date(Post.timestamp).label('date'),
+        func.count(Post.id).label('count')
+    ).filter(
+        Post.user_id == user_id,
+        Post.timestamp >= thirty_days_ago
+    ).group_by(func.date(Post.timestamp)).all()
+    
+    dates = [(thirty_days_ago + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(31)]
+    counts = [0] * 31
+    
+    for date, count in post_counts:
+        index = (date.date() - thirty_days_ago.date()).days
+        counts[index] = count
+    
+    return jsonify({
+        'labels': dates,
+        'posts': counts
+    })
+
 @app.route('/profile/<username>')
 
 @app.route('/profile/<username>')
@@ -191,11 +219,10 @@ def delete_account():
         return jsonify({'error': 'An error occurred while deleting your account.'}), 500
 
 
-def is_following(self, user):
-    return self.following.filter_by(followed_id=user.id).first() is not None
+""" def is_following(self, user):
+    return self.follow.filter_by(followed_id=user.id).first() is not None
 
-
-User.is_following = is_following
+User.is_following = is_following """
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -506,15 +533,21 @@ def generate_ai_reply(content):
     
     response = model.generate_content(prompt)
     
+    # Remove any remaining asterisks from the response
+    cleaned_response = response.text.replace('*', '')
+    
     # Use the emojis library to add emojis to the response text
-    return emojis.encode(response.text, language='alias')
+    return emojis.encode(cleaned_response, language='alias')
 
 
-@app.route('/generate_ai_reply/<int:recipient_id>', methods=['GET'])
+@app.route('/generate_ai_reply/<int:recipient_id>', methods=['POST'])
 @login_required
 def api_generate_ai_reply(recipient_id):
     # Fetch the latest message content from the chat with the recipient
-    last_message = Message.query.filter_by(recipient_id=recipient_id, sender_id=current_user.id).order_by(Message.timestamp.desc()).first()
+    last_message = Message.query.filter(
+        ((Message.sender_id == current_user.id) & (Message.recipient_id == recipient_id)) |
+        ((Message.sender_id == recipient_id) & (Message.recipient_id == current_user.id))
+    ).order_by(Message.timestamp.desc()).first()
     
     if last_message:
         content = last_message.content
@@ -770,5 +803,5 @@ def moderate_content(content):
 
 if __name__ == '__main__':
     #with app.app_context():
-        #db.create_all()
-    socketio.run(app, debug=True)
+       # db.create_all()
+        socketio.run(app, debug=True)

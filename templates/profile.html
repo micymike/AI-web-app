@@ -62,27 +62,34 @@
             <!-- User Info Section -->
             <div class="flex flex-col md:flex-row items-center mb-6">
                 <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}'s profile picture" class="w-32 h-32 rounded-full mr-6 mb-4 md:mb-0">
+                
                 <div class="text-center md:text-left">
                     <h1 class="text-3xl font-bold">{{ user.username }}</h1>
-                    <p class="text-gray-600">{{ user.email }}</p>
-                    <p class="text-sm text-gray-500">
-                        <i class="fas fa-calendar-alt mr-1"></i>
-                        Joined {{ user.date_joined.strftime('%B %Y') if user.date_joined else 'Date not available' }}
-                    </p>
-
-                    {% if current_user.id == user.id %}
-                        <a href="{{ url_for('edit_profile') }}" class="mt-2 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">Edit Profile</a>
-                        <button id="deleteAccountBtn" class="mt-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300">
-                            <i class="fas fa-trash-alt mr-1"></i> Delete Account
-                        </button>
+                    <p>{{ user.email }}</p>
+                    <p>Joined {{ user.date_joined.strftime('%B %Y') if user.date_joined else 'Date not available' }}</p>
+                    
+                    {% if current_user.id != user.id %}
+                        {% if not current_user.is_following(user) %}
+                            <form action="{{ url_for('prof.follow', username=user.username) }}" method="POST" class="mt-2">
+                                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                                    Follow
+                                </button>
+                            </form>
+                        {% else %}
+                            <form action="{{ url_for('prof.unfollow', username=user.username) }}" method="POST" class="mt-2">
+                                <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                                    Unfollow
+                                </button>
+                            </form>
+                        {% endif %}
                     {% else %}
-                        <button id="followBtn" class="mt-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition duration-300">
-                            Follow
-                        </button>
+                        <a href="{{ url_for('prof.edit_profile') }}" class="mt-2 inline-block bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
+                            Edit Profile
+                        </a>
                     {% endif %}
                 </div>
+                
             </div>
-
             <!-- Bio Section -->
             <div class="bg-gray-50 p-4 rounded-lg mb-6">
                 <h2 class="text-xl font-semibold mb-2">About</h2>

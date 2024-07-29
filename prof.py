@@ -78,30 +78,16 @@ def edit_profile():
 @login_required
 def follow(username):
     user = User.query.filter_by(username=username).first_or_404()
-    if not current_user.is_following(user):
-        current_user.follow(user)
-        db.session.commit()
-        flash(f'You are now following {username}!', 'success')
-    else:
-        flash(f'You are already following {username}.', 'info')
-
+    current_user.follow(user)
+    db.session.commit()
     return redirect(url_for('prof.user_profile', username=username))
-
-
 
 @profile.route('/unfollow/<username>', methods=['POST'])
 @login_required
 def unfollow(username):
-    user = User.query.filter_by(username=username).first()
-    if user is None:
-        flash('User not found.', 'error')
-        return redirect(url_for('index'))
-    if user == current_user:
-        flash('You cannot unfollow yourself!', 'error')
-        return redirect(url_for('prof.user_profile', username=username))
+    user = User.query.filter_by(username=username).first_or_404()
     current_user.unfollow(user)
     db.session.commit()
-    flash(f'You have unfollowed {username}.', 'success')
     return redirect(url_for('prof.user_profile', username=username))
 
 @profile.route('/followers/<username>')

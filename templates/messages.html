@@ -166,9 +166,7 @@
                 {% if recipient %}
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-lg font-bold">Chatting with {{ recipient.username }}</h2>
-                        <button id="clear-chat-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-300 ease-in-out">
-                            <i class="fas fa-trash-alt mr-2"></i> Clear Chat
-                        </button>
+                        <button id="clearChat" class="bg-red-500 text-white px-4 py-2 rounded">Clear Chat</button>
                     </div>
 
                     <!-- Messages -->
@@ -204,23 +202,13 @@
                     </form>
 
                     <!-- AI Reply Button -->
-                    <button id="ai-reply-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-4 transition duration-300 ease-in-out transform hover:scale-105">
-                        <i class="fas fa-robot mr-2"></i> AI Reply
-                    </button>
+                    <button id="aiReply" class="bg-blue-500 text-white px-4 py-2 rounded mb-4">AI Reply</button>
 
-                    <!-- Conversation Starters Button -->
-                    <button id="show-starters-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded mt-4 transition duration-300 ease-in-out transform hover:scale-105">
-                        <i class="fas fa-lightbulb mr-2"></i> Show Conversation Starters
-                    </button>
-
-                    <!-- Conversation Starters -->
+                    <button id="showStarters" class="bg-green-500 text-white px-4 py-2 rounded mb-4">Show Conversation Starters</button>
+        
                     <div id="conversation-starters" class="mt-4 hidden bg-gray-100 p-4 rounded-lg">
                         <h3 class="text-lg font-bold mb-2">Conversation Starters</h3>
-                        <ul class="list-none pl-0">
-                            {% for starter in starters %}
-                                <li class="conversation-starter mb-2 p-2 rounded-lg hover:bg-gray-200 transition duration-300 ease-in-out">{{ starter }}</li>
-                            {% endfor %}
-                        </ul>
+                        <ul id="startersList"></ul>
                     </div>
                 {% else %}
                     <p class="text-center text-gray-500">Select a user to start chatting.</p>
@@ -231,136 +219,132 @@
 
     <!-- Add the Socket.IO client library -->
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+
     <script>
-                // JavaScript to toggle the menu
-                document.getElementById('menu-toggle').addEventListener('click', function() {
-                    var dropdownMenu = document.getElementById('dropdown-menu');
-                    dropdownMenu.classList.toggle('hidden');
-                });
-        const socket = io();
+      // Establish socket connection
+const socket = io();
 
-        // Show conversation starters on button click
-        document.getElementById('show-starters-btn').addEventListener('click', () => {
-            const startersDiv = document.getElementById('conversation-starters');
-            startersDiv.classList.toggle('hidden');
-        });
+// DOM elements
+const messages = document.getElementById('messages');
+const aiReplyBtn = document.getElementById('aiReply');
+const showStartersBtn = document.getElementById('showStarters');
+const startersList = document.getElementById('startersList');
+const conversationStarters = document.getElementById('conversation-starters');
+const messageInput = document.getElementById('messageInput');
+const sendMessageBtn = document.getElementById('sendMessage');
+const clearChatBtn = document.getElementById('clearChat');
 
-// AI Reply Button
-document.getElementById('ai-reply-button').addEventListener('click', function() {
-    const recipientId = this.dataset.recipientId;
-    fetch(`/generate_ai_reply/${recipientId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.reply) {
-                document.getElementById('message-input').value = data.reply;
-            } else {
-                console.error('Error generating AI reply:', data.error);
-            }
-        })
-        .catch(error => console.error('Error:', error));
+// AI Reply button functionality
+aiReplyBtn.addEventListener('click', () => {
+  const recipientId = recipientId || null;
+  if (recipientId) {
+    axios.post(`/generate_ai_reply/${recipientId}`)
+      .then(response => {
+        console.log('AI reply generated:', response.data.reply);
+        addMessageToChat(response.data.reply, true);
+      })
+      .catch(error => {
+        console.error('Error generating AI reply:', error);
+      });
+  }
 });
 
-        // Clear chat functionality
-        document.getElementById('clear-chat-btn').addEventListener('click', () => {
-            if (confirm('Are you sure you want to clear the entire chat?')) {
-                fetch(`/delete_chat_history/{{ recipient.id }}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // Include any necessary CSRF token here
-                    },
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const messagesDiv = document.getElementById('messages');
-                        messagesDiv.innerHTML = '';
-                        alert('Chat history deleted successfully');
-                    } else {
-                        alert('Failed to delete chat history: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while deleting chat history');
-                });
-            }
+// Show Conversation Starters functionality
+showStartersBtn.addEventListener('click', () => {
+  const recipientId = recipientId || null;
+  if (recipientId) {
+    axios.get(`/api/conversation_starters/${recipientId}`)
+      .then(response => {
+        startersList.innerHTML = '';
+        response.data.starters.forEach(starter => {
+          const li = document.createElement('li');
+          li.textContent = starter.replace(/\*/g, ''); // Remove asterisks
+          li.classList.add('cursor-pointer', 'hover:bg-gray-200', 'p-2', 'rounded');
+          li.addEventListener('click', () => {
+            messageInput.value = starter;
+            conversationStarters.classList.add('hidden');
+          });
+          startersList.appendChild(li);
         });
+        conversationStarters.classList.toggle('hidden');
+      })
+      .catch(error => {
+        console.error('Error fetching conversation starters:', error);
+      });
+  }
+});
 
-        // Make conversation starters clickable
-        document.querySelectorAll('.conversation-starter').forEach(starter => {
-            starter.addEventListener('click', () => {
-                const messageInput = document.querySelector('input[name="content"]');
-                messageInput.value = starter.textContent;
-                document.getElementById('message-form').submit();
-            });
-        });
-
-        // Send Button
-document.getElementById('send-button').addEventListener('click', function() {
+// Send message functionality
+sendMessageBtn.addEventListener('click', sendMessage);
+messageInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
     sendMessage();
-});
-
-
-        socket.on('new_message', (message) => {
-            const messagesDiv = document.getElementById('messages');
-            const newMessageDiv = document.createElement('div');
-            newMessageDiv.classList.add('flex', 'items-start', 'mb-4', message.sender_id === '{{ current_user.id }}' ? 'justify-end' : '');
-
-            newMessageDiv.innerHTML = `
-                ${message.sender_id !== '{{ current_user.id }}' ? `<img src="${message.sender_profile_picture}" alt="${message.sender_username}" class="w-8 h-8 rounded-full mr-2">` : ''}
-                <div class="${message.sender_id === '{{ current_user.id }}' ? 'mr-2' : 'ml-2'}">
-                    <div class="chat-bubble ${message.sender_id === '{{ current_user.id }}' ? 'right' : 'left'}">
-                        <p>${message.content}</p>
-                        ${message.media_url ? `<img src="${message.media_url}" alt="Media" class="mt-2 rounded-lg max-w-full">` : ''}
-                    </div>
-                    <span class="message-timestamp">${message.timestamp}</span>
-                </div>
-            `;
-            messagesDiv.appendChild(newMessageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        });
-
-        // Attachment Button
-document.getElementById('attachment-button').addEventListener('click', function() {
-    document.getElementById('file-input').click();
-});
-
-document.getElementById('file-input').addEventListener('change', function() {
-    const fileName = this.files[0].name;
-    document.getElementById('file-name').textContent = fileName;
+  }
 });
 
 function sendMessage() {
-    const messageInput = document.getElementById('message-input');
-    const fileInput = document.getElementById('file-input');
-    const recipientId = document.getElementById('recipient-id').value;
-
-    const formData = new FormData();
-    formData.append('content', messageInput.value);
-    formData.append('recipient_id', recipientId);
-    
-    if (fileInput.files[0]) {
-        formData.append('media', fileInput.files[0]);
+  const content = messageInput.value.trim();
+  if (content) {
+    const recipientId = recipientId || null;
+    if (recipientId) {
+      axios.post('/send_message', { recipient_id: recipientId, content: content })
+        .then(response => {
+          addMessageToChat(content, false);
+          messageInput.value = '';
+        })
+        .catch(error => {
+          console.error('Error sending message:', error);
+        });
     }
-
-    fetch('/send_message/' + recipientId, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            console.error('Error sending message:', data.error);
-        } else {
-            messageInput.value = '';
-            fileInput.value = '';
-            document.getElementById('file-name').textContent = '';
-            // Optionally, you can update the UI to show the sent message
-        }
-    })
-    .catch(error => console.error('Error:', error));
+  }
 }
+
+// Clear chat functionality
+clearChatBtn.addEventListener('click', () => {
+  const recipientId = recipientId || null;
+  if (recipientId && confirm('Are you sure you want to clear this chat?')) {
+    axios.post(`/clear_chat/${recipientId}`)
+      .then(() => {
+        messages.innerHTML = '';
+      })
+      .catch(error => {
+        console.error('Error clearing chat:', error);
+      });
+  }
+});
+
+// Socket.io event listeners
+socket.on('new_message', (data) => {
+  addMessageToChat(data.content, data.sender_id !== currentUserId);
+});
+
+// Helper function to add a message to the chat
+function addMessageToChat(content, isReceived) {
+  const messageDiv = document.createElement('div');
+  messageDiv.classList.add('flex', 'items-start', 'mb-4');
+  if (!isReceived) {
+    messageDiv.classList.add('justify-end');
+  }
+  
+  messageDiv.innerHTML = `
+    ${isReceived ? `<img src="${recipientProfilePicture}" alt="${recipientUsername}" class="w-8 h-8 rounded-full mr-2">` : ''}
+    <div class="${isReceived ? 'ml-2' : 'mr-2'}">
+      <div class="chat-bubble ${isReceived ? 'left' : 'right'}">
+        ${content}
+      </div>
+      <span class="message-timestamp">${new Date().toLocaleTimeString()}</span>
+    </div>
+  `;
+  
+  messages.appendChild(messageDiv);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// Initialize tooltips
+tippy('[data-tippy-content]');
+
+// Add smooth scrolling to messages container
+messages.style.scrollBehavior = 'smooth';
     </script>
 </body>
 </html>
