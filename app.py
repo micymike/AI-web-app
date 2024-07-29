@@ -436,6 +436,7 @@ def api_conversation_starters(other_user_id):
 
 @app.route('/send_message/<int:recipient_id>', methods=['POST'])
 @login_required
+@cache.memoize(300)
 def send_message_route(recipient_id):
     content = request.form['content']
     media = request.files.get('media')
@@ -486,7 +487,9 @@ def send_message_route(recipient_id):
             socketio.emit('new_message', ai_message_data, room=str(current_user.id))
     
     return redirect(url_for('messages', recipient_id=recipient_id))
-import emojis
+
+
+
 
 def generate_ai_reply(content):
     prompt = f"""
@@ -496,7 +499,6 @@ def generate_ai_reply(content):
     Do not use asterisks or any other formatting. The reply should be ready to send as-is.
     """
     
-    # Call the model's generate_content function synchronously
     response = model.generate_content(prompt)
     
     # Use the emojis library to add emojis to the response text

@@ -151,7 +151,7 @@
                     {% for user in available_users %}
                         <li>
                             <a href="{{ url_for('messages', recipient_id=user.id) }}" class="flex items-center p-2 rounded-lg hover:bg-gray-200">
-                                <img src="{{ user.profile_picture }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full">
+                                <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full">
                                 <span class="ml-3">{{ user.username }}</span>
                             </a>
                         </li>
@@ -243,22 +243,21 @@
             startersDiv.classList.toggle('hidden');
         });
 
-        // Trigger AI reply
-        document.getElementById('ai-reply-btn').addEventListener('click', () => {
-            const content = document.querySelector('input[name="content"]').value;
-            fetch(`/generate_ai_reply/${content}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.reply) {
-                        // Populate the chat input area with the AI-generated message
-                        const messageInput = document.querySelector('input[name="content"]');
-                        messageInput.value = data.reply;
-                    } else {
-                        console.error('AI reply error:', data.error);
-                    }
-                });
-        });
-    
+// AI Reply Button
+document.getElementById('ai-reply-button').addEventListener('click', function() {
+    const recipientId = this.dataset.recipientId;
+    fetch(`/generate_ai_reply/${recipientId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.reply) {
+                document.getElementById('message-input').value = data.reply;
+            } else {
+                console.error('Error generating AI reply:', data.error);
+            }
+        })
+        .catch(error => console.error('Error:', error));
+});
+
         // Clear chat functionality
         document.getElementById('clear-chat-btn').addEventListener('click', () => {
             if (confirm('Are you sure you want to clear the entire chat?')) {
@@ -295,6 +294,12 @@
             });
         });
 
+        // Send Button
+document.getElementById('send-button').addEventListener('click', function() {
+    sendMessage();
+});
+
+
         socket.on('new_message', (message) => {
             const messagesDiv = document.getElementById('messages');
             const newMessageDiv = document.createElement('div');
@@ -313,6 +318,47 @@
             messagesDiv.appendChild(newMessageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         });
+
+        // Attachment Button
+document.getElementById('attachment-button').addEventListener('click', function() {
+    document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', function() {
+    const fileName = this.files[0].name;
+    document.getElementById('file-name').textContent = fileName;
+});
+
+function sendMessage() {
+    const messageInput = document.getElementById('message-input');
+    const fileInput = document.getElementById('file-input');
+    const recipientId = document.getElementById('recipient-id').value;
+
+    const formData = new FormData();
+    formData.append('content', messageInput.value);
+    formData.append('recipient_id', recipientId);
+    
+    if (fileInput.files[0]) {
+        formData.append('media', fileInput.files[0]);
+    }
+
+    fetch('/send_message/' + recipientId, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            console.error('Error sending message:', data.error);
+        } else {
+            messageInput.value = '';
+            fileInput.value = '';
+            document.getElementById('file-name').textContent = '';
+            // Optionally, you can update the UI to show the sent message
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
     </script>
 </body>
 </html>
