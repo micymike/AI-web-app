@@ -260,7 +260,8 @@ def post():
         db.session.add(new_post)
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Your post has been created!'}), 200
+        # Redirect to the index page after successful post creation
+        return redirect(url_for('index'))
 
     except Exception as e:
         logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
