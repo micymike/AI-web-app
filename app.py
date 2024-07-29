@@ -1,4 +1,3 @@
-
 import json
 import logging
 import re
@@ -48,25 +47,12 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# Initialize the SQLAlchemy instance with the Flask app
-#db.init_app(app)
-
-# Initialize Flask-Migrate
 migrate = Migrate(app, db)
 
 # Import and register blueprints here
 from prof import profile as profile_blueprint  # Import your blueprint
 app.register_blueprint(profile_blueprint)
 
-
-
-# Database models
-
-
-
-""" @login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id)) """
 
 def is_valid_input(text):
     return text and len(text.strip()) > 0
@@ -152,51 +138,67 @@ def edit_profile():
         return redirect(url_for('profile', username=current_user.username))
     return render_template('edit_profile.html')
 
-@app.route('/follow/<username>')
-
+@app.route('/api/follow/<username>', methods=['POST'])
+@login_required
 def follow(username):
     user = User.query.filter_by(username=username).first()
     if user is None:
-        flash('User not found.')
-        return redirect(url_for('index'))
+        return jsonify({'error': 'User not found.'}), 404
     if user == current_user:
-        flash('You cannot follow yourself!')
-        return redirect(url_for('profile', username=username))
-    current_user.following.append(Follow(followed=user))
-    db.session.commit()
-    flash(f'You are now following {username}!')
-    return redirect(url_for('profile', username=username))
+        return jsonify({'error': 'You cannot follow yourself!'}), 400
+    
+    if not current_user.is_following(user):
+        current_user.following.append(Follow(followed=user))
+        db.session.commit()
+        return jsonify({
+            'message': f'You are now following {username}!',
+            'followerCount': user.followers.count()
+        })
+    else:
+        return jsonify({'error': 'You are already following this user.'}), 400
 
-@app.route('/unfollow/<username>')
-
+@app.route('/api/unfollow/<username>', methods=['POST'])
+@login_required
 def unfollow(username):
     user = User.query.filter_by(username=username).first()
     if user is None:
-        flash('User not found.')
-        return redirect(url_for('index'))
+        return jsonify({'error': 'User not found.'}), 404
     if user == current_user:
-        flash('You cannot unfollow yourself!')
-        return redirect(url_for('profile', username=username))
+        return jsonify({'error': 'You cannot unfollow yourself!'}), 400
+    
     follow = current_user.following.filter_by(followed_id=user.id).first()
     if follow:
         db.session.delete(follow)
         db.session.commit()
-        flash(f'You have unfollowed {username}.')
-    return redirect(url_for('profile', username=username))
+        return jsonify({
+            'message': f'You have unfollowed {username}.',
+            'followerCount': user.followers.count()
+        })
+    else:
+        return jsonify({'error': 'You are not following this user.'}), 400
+
+@app.route('/api/delete_account', methods=['POST'])
+@login_required
+def delete_account():
+    try:
+
+        db.session.delete(current_user)
+        db.session.commit()
+        flash('Your account has been successfully deleted.')
+        return jsonify({'message': 'Account deleted successfully', 'redirect': url_for('register')})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'An error occurred while deleting your account.'}), 500
+
+
+def is_following(self, user):
+    return self.following.filter_by(followed_id=user.id).first() is not None
+
+
+User.is_following = is_following
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-# Configure the Gemini model
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('gemini-pro')
-
-
-logger = logging.getLogger(__name__)
-
-# Configure the Gemini model
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('gemini-pro')
 
 @app.route('/post', methods=['POST'])
 @login_required

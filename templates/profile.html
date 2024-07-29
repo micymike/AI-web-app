@@ -56,14 +56,6 @@
         </div>
     </nav>
 
-    <script>
-        // JavaScript to toggle the menu
-        document.getElementById('menu-toggle').addEventListener('click', function() {
-            var dropdownMenu = document.getElementById('dropdown-menu');
-            dropdownMenu.classList.toggle('hidden');
-        });
-    </script>
-
     <main class="container mx-auto mt-8 px-4 sm:px-6 lg:px-8">
         <div class="bg-white rounded-lg shadow-md p-6 sm:p-8 md:p-10 lg:p-12">
             <!-- User Info Section -->
@@ -79,16 +71,14 @@
 
                     {% if current_user.id == user.id %}
                         <a href="{{ url_for('edit_profile') }}" class="mt-2 inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">Edit Profile</a>
-                    {% elif not current_user.is_following(user) %}
-                        <form action="{{ url_for('follow', username=user.username) }}" method="POST" class="inline">
-                            <button type="submit" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">Follow</button>
-                        </form>
+                        <button id="deleteAccountBtn" class="mt-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300">
+                            <i class="fas fa-trash-alt mr-1"></i> Delete Account
+                        </button>
                     {% else %}
-                        <form action="{{ url_for('unfollow', username=user.username) }}" method="POST" class="inline">
-                            <button type="submit" class="mt-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300">Unfollow</button>
-                        </form>
+                        <button id="followBtn" class="mt-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition duration-300">
+                            Follow
+                        </button>
                     {% endif %}
-                    
                 </div>
             </div>
 
@@ -105,13 +95,15 @@
                     <p class="text-gray-600">Posts</p>
                 </div>
                 <div class="w-full sm:w-1/3 text-center p-4 bg-green-100 rounded-lg m-2">
-                    <span class="text-3xl font-bold text-green-600">{{ followers_count }}</span>
+                    <span id="followerCount" class="text-3xl font-bold text-green-600">{{ followers_count }}</span>
                     <p class="text-gray-600">
-                        {% if followers_count == 1 %}
-                            1 follower
-                        {% else %}
-                            {{ followers_count }} followers
-                        {% endif %}
+                        <span id="followerText">
+                            {% if followers_count == 1 %}
+                                1 follower
+                            {% else %}
+                                {{ followers_count }} followers
+                            {% endif %}
+                        </span>
                     </p>
                 </div>
                 <div class="w-full sm:w-1/3 text-center p-4 bg-purple-100 rounded-lg m-2">
@@ -160,6 +152,12 @@
     </footer>
 
     <script>
+        // Menu toggle
+        document.getElementById('menu-toggle').addEventListener('click', function() {
+            var dropdownMenu = document.getElementById('dropdown-menu');
+            dropdownMenu.classList.toggle('hidden');
+        });
+
         // Add hover effect to nav links
         document.querySelectorAll('nav a').forEach(link => {
             link.addEventListener('mouseenter', function() {
@@ -202,6 +200,53 @@
                 }
             }
         });
+
+        // Follow button functionality
+        // Follow button functionality
+const followBtn = document.getElementById('followBtn');
+if (followBtn) {
+    followBtn.addEventListener('click', function() {
+        const username = this.dataset.username;
+        const isFollowing = this.textContent.trim() === 'Unfollow';
+        const url = isFollowing ? `/api/unfollow/${username}` : `/api/follow/${username}`;
+
+        fetch(url, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    this.textContent = isFollowing ? 'Follow' : 'Unfollow';
+                    this.classList.toggle('bg-green-500');
+                    this.classList.toggle('bg-red-500');
+                    document.getElementById('followerCount').textContent = data.followerCount;
+                    document.getElementById('followerText').textContent = 
+                        data.followerCount === 1 ? '1 follower' : `${data.followerCount} followers`;
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    });
+}
+
+// Delete account functionality
+const deleteAccountBtn = document.getElementById('deleteAccountBtn');
+if (deleteAccountBtn) {
+    deleteAccountBtn.addEventListener('click', function() {
+        if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+            fetch('/api/delete_account', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        alert(data.message);
+                        window.location.href = data.redirect;
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    });
+}
     </script>
 </body>
 </html>
