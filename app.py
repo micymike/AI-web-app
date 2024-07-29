@@ -385,6 +385,10 @@ def delete_post(post_id):
     if post.author != current_user:
         return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
     
+    # Manually delete all comments associated with the post
+    for comment in post.comments:
+        db.session.delete(comment)
+    
     db.session.delete(post)
     db.session.commit()
     
@@ -403,6 +407,7 @@ def conversations():
 @app.route('/messages/', defaults={'recipient_id': None})
 @app.route('/messages/<int:recipient_id>')
 @login_required
+@cache.cached(timeout=60, key_prefix='messages_%s')  # Cache for 1 minute
 def messages(recipient_id):
     available_users = get_available_users()
     
@@ -419,7 +424,6 @@ def messages(recipient_id):
                            recipient=recipient, 
                            available_users=available_users,
                            current_user=current_user)
-
 
 
 @app.route('/api/conversation_starters/<int:other_user_id>')
@@ -626,6 +630,7 @@ def get_available_users():
     users = User.query.filter(User.id != current_user.id).all()
     return [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
 
+@cache.memoize(300)
 def suggest_conversation_starters(user_id, other_user_id):
     user = User.query.get(user_id)
     other_user = User.query.get(other_user_id)
@@ -677,6 +682,7 @@ def make_session_permanent():
     session.permanent = True
     app.permanent_session_lifetime = timedelta(days=30)
     
+@cache.memoize(300)
 def moderate_content(content):
     prompt = f"""
     Analyze the following content for appropriateness on a social media platform. Please take into account common community guidelines which may include but are not limited to: harassment, hate speech, violence, explicit content, misinformation, and spam.

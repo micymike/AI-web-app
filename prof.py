@@ -106,6 +106,7 @@ def unfollow(username):
 
 @profile.route('/followers/<username>')
 @login_required
+@cache.cached(timeout=300, key_prefix='followers_%s')
 def followers(username):
     user = User.query.filter_by(username=username).first_or_404()
     followers = user.followers.all()
@@ -113,6 +114,7 @@ def followers(username):
 
 @profile.route('/following/<username>')
 @login_required
+@cache.cached(timeout=300, key_prefix='following_%s')
 def following(username):
     user = User.query.filter_by(username=username).first_or_404()
     following = user.following.all()
