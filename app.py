@@ -187,8 +187,7 @@ def follow(username):
         return jsonify({'error': 'You cannot follow yourself!'}), 400
     
     if not current_user.is_following(user):
-        current_user.following.append(Follow(followed=user))
-        db.session.commit()
+        current_user.follow(user)
         return jsonify({
             'message': f'You are now following {username}!',
             'followerCount': user.followers.count()
@@ -205,10 +204,8 @@ def unfollow(username):
     if user == current_user:
         return jsonify({'error': 'You cannot unfollow yourself!'}), 400
     
-    follow = current_user.following.filter_by(followed_id=user.id).first()
-    if follow:
-        db.session.delete(follow)
-        db.session.commit()
+    if current_user.is_following(user):
+        current_user.unfollow(user)
         return jsonify({
             'message': f'You have unfollowed {username}.',
             'followerCount': user.followers.count()
@@ -525,11 +522,15 @@ def generate_ai_reply(content):
     
     response = model.generate_content(prompt)
     
-    # Remove any remaining asterisks from the response
-    cleaned_response = response.text.replace('*', '')
-    
-    # Use the emojis library to add emojis to the response text
-    return emojis.encode(cleaned_response, language='alias')
+    # Check if the response contains text
+    if hasattr(response, 'text') and response.text:
+        # Remove any remaining asterisks from the response
+        cleaned_response = response.text.replace('*', '')
+        
+        return cleaned_response
+    else:
+        # Handle the case where response does not contain text
+        return "Sorry, I couldn't generate a reply."
 
 
 @app.route('/generate_ai_reply/<int:recipient_id>', methods=['POST'])

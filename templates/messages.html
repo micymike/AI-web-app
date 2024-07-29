@@ -202,7 +202,6 @@
                     </form>
 
                     <!-- AI Reply Button -->
-                    <button id="aiReply" class="bg-blue-500 text-white px-4 py-2 rounded mb-4">AI Reply</button>
 
                     <button id="showStarters" class="bg-green-500 text-white px-4 py-2 rounded mb-4">Show Conversation Starters</button>
         
@@ -265,20 +264,6 @@ const messageInput = document.getElementById('messageInput');
 const sendMessageBtn = document.getElementById('sendMessage');
 const clearChatBtn = document.getElementById('clearChat');
 
-// AI Reply button functionality
-aiReplyBtn.addEventListener('click', () => {
-  const recipientId = recipientId || null;
-  if (recipientId) {
-    axios.post(`/generate_ai_reply/${recipientId}`)
-      .then(response => {
-        console.log('AI reply generated:', response.data.reply);
-        addMessageToChat(response.data.reply, true);
-      })
-      .catch(error => {
-        console.error('Error generating AI reply:', error);
-      });
-  }
-});
 
 // Show Conversation Starters functionality
 showStartersBtn.addEventListener('click', () => {
