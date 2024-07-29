@@ -222,7 +222,38 @@
 
     <script>
       // Establish socket connection
-const socket = io();
+      let page = 1;
+const pageSize = 20;
+
+function loadMoreMessages() {
+  axios.get(`/api/messages?page=${page}&pageSize=${pageSize}`)
+    .then(response => {
+      // Prepend messages to the chat
+      prependMessages(response.data.messages);
+      page++;
+    });
+}
+const socket = io({
+  transports: ['websocket'],
+  upgrade: false
+});
+
+import { FixedSizeList as List } from 'react-window';
+
+function ChatList({ messages }) {
+  return (
+    <List
+      height={400}
+      itemCount={messages.length}
+      itemSize={50}
+      width={300}
+    >
+      {({ index, style }) => (
+        <div style={style}>{messages[index].content}</div>
+      )}
+    </List>
+  );
+}
 
 // DOM elements
 const messages = document.getElementById('messages');

@@ -35,16 +35,11 @@ from cache_utils import cache
 
 cache.init_app(app)
 
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
 socketio = SocketIO(app, message_queue='memory://')
 
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-pro')
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
 
 
 migrate = Migrate(app, db)
@@ -78,15 +73,30 @@ def index():
     return render_template('index.html', all_users=all_users, all_posts=all_posts)
 
 
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(days=30)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
-            login_user(user)
-            return redirect(url_for('index'))
+            login_user(user, remember=True)  # Set remember=True to keep the user logged in
+            session['user_id'] = user.id  # Store user_id in session
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
         flash('Invalid username or password')
     return render_template('login.html')
+
 
 @app.route('/logout')
 
@@ -140,9 +150,10 @@ def user_activity(user_id):
         'posts': counts
     })
 
-@app.route('/profile/<username>')
+
 
 @app.route('/profile/<username>')
+@login_required
 def user_profile(username):
     user = User.query.filter_by(username=username).first_or_404()
     posts = Post.query.filter_by(user_id=user.id).all()
@@ -151,7 +162,7 @@ def user_profile(username):
 
 
 @app.route('/edit_profile', methods=['GET', 'POST'])
-
+@login_required
 def edit_profile():
     if request.method == 'POST':
         current_user.bio = request.form['bio']
@@ -218,11 +229,6 @@ def delete_account():
         db.session.rollback()
         return jsonify({'error': 'An error occurred while deleting your account.'}), 500
 
-
-""" def is_following(self, user):
-    return self.follow.filter_by(followed_id=user.id).first() is not None
-
-User.is_following = is_following """
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -304,7 +310,7 @@ def submit_post():
     if not content:
         return jsonify({'error': 'Post content cannot be empty!'}), 400
 
-    # Use Gemini model to check for community guideline violations
+    
     prompt = f"""
     Analyze the following text for any violations of community guidelines. 
     If violations are found, provide a friendly explanation and suggest 3 alternative wordings.
@@ -322,7 +328,6 @@ def submit_post():
         response = model.generate_content(prompt)
         logger.debug(f"Gemini response text: {response.text}")
         
-        # Extract JSON from the response
         json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
         if json_match:
             response_data = json.loads(json_match.group(0))
@@ -360,20 +365,7 @@ def submit_post():
 
     
 
-def chat():
-    if request.method == 'POST':
-        user_input = request.form.get('user_input', '')
-        response = model.generate_content(f"User: {user_input}\nAI Assistant: ")
-        ai_response = response.text
-        
-        # Check if the response suggests the content might be inappropriate
-        if "inappropriate" in ai_response.lower() or "offensive" in ai_response.lower():
-            flash('Your input might be inappropriate. Please revise and try again.', 'warning')
-            return redirect(url_for('index'))
 
-        return jsonify({'response': ai_response})
-
-    return render_template('index.html')
 @app.route('/like/<int:post_id>', methods=['POST'])
 @login_required
 def like_post(post_id):
@@ -413,7 +405,7 @@ def delete_comment(comment_id):
     return jsonify({'message': 'Comment deleted successfully'}), 200
 
 @app.route('/delete_post/<int:post_id>', methods=['DELETE'])
-
+@login_required
 def delete_post(post_id):
     post = Post.query.get_or_404(post_id)
     if post.author != current_user:
@@ -461,7 +453,7 @@ def messages(recipient_id):
 
 
 @app.route('/api/conversation_starters/<int:other_user_id>')
-
+@login_required
 def api_conversation_starters(other_user_id):
     starters = suggest_conversation_starters(current_user.id, other_user_id)
     return jsonify({'starters': starters})

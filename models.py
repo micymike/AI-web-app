@@ -35,6 +35,8 @@ class User(UserMixin, db.Model):
         backref=db.backref('followers', lazy='dynamic'),
         lazy='dynamic'
     )
+    def get_id(self):
+        return str(self.id)
 
     def follow(self, user):
         if not self.is_following(user):
