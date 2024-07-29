@@ -13,3 +13,4 @@ emojis
 SocketIO
 pytz
 flask-caching
+kombu
