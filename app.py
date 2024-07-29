@@ -63,7 +63,6 @@ def allowed_file(filename):
 from flask_login import current_user, login_required
 
 @app.route('/')
-@cache.cached(timeout=60) 
 def index():
     if current_user.is_authenticated:
         all_users = User.query.all()
@@ -113,10 +112,9 @@ def replace_usernames(text):
         return f'<a href="{url_for("profile", username=username)}" class="text-blue-500 hover:underline">@{username}</a>'
     
     return re.sub(r'@(\w+)', replace_username, text)
-
+@app.route('/profile/<username>')
 
 @app.route('/profile/<username>')
-@cache.cached(timeout=300) 
 def user_profile(username):
     user = User.query.filter_by(username=username).first_or_404()
     posts = Post.query.filter_by(user_id=user.id).all()
@@ -202,12 +200,15 @@ User.is_following = is_following
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+from flask import render_template, flash, redirect, url_for
+
 @app.route('/post', methods=['POST'])
 @login_required
 def post():
     user_input = request.form.get('content', '').strip()
     if not user_input:
-        return jsonify({'error': 'Post content cannot be empty!'}), 400
+        flash('Post content cannot be empty!', 'error')
+        return redirect(url_for('index'))
 
     # Use Gemini model to check for community guideline violations
     prompt = f"""
@@ -235,18 +236,18 @@ def post():
                 response_data = json.loads(response_json)
             except json.JSONDecodeError as e:
                 logger.error(f"JSONDecodeError: {str(e)} - Response: {response_json}")
-                return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
+                flash('An error occurred while processing your post. Please try again.', 'error')
+                return redirect(url_for('index'))
         else:
             raise ValueError("No valid JSON found in the response")
         
         logger.debug(f"Parsed response data: {response_data}")
 
         if response_data.get('violates_guidelines', False):
-            return jsonify({
-                'violates_guidelines': True,
-                'explanation': response_data.get('explanation', 'No explanation provided.'),
-                'suggestions': response_data.get('suggestions', [])
-            }), 200
+            flash(response_data.get('explanation', 'Your post may violate community guidelines.'), 'warning')
+            return render_template('index.html', 
+                                   violation_suggestions=response_data.get('suggestions', []),
+                                   original_content=user_input)
         
         # If no violations, create the post
         new_post = Post(content=user_input, user_id=current_user.id, timestamp=datetime.utcnow())
@@ -262,12 +263,13 @@ def post():
         db.session.add(new_post)
         db.session.commit()
         
-        # Redirect to the index page after successful post creation
+        flash('Your post has been created successfully!', 'success')
         return redirect(url_for('index'))
 
     except Exception as e:
         logger.error(f"Error processing or saving post: {str(e)}", exc_info=True)
-        return jsonify({'error': 'An error occurred while processing your post. Please try again.'}), 500
+        flash('An error occurred while processing your post. Please try again.', 'error')
+        return redirect(url_for('index'))
 @app.route('/submit_post', methods=['POST'])
 @login_required
 def submit_post():
@@ -432,7 +434,7 @@ def messages(recipient_id):
 
 
 @app.route('/api/conversation_starters/<int:other_user_id>')
-@cache.memoize(timeout=300) 
+
 def api_conversation_starters(other_user_id):
     starters = suggest_conversation_starters(current_user.id, other_user_id)
     return jsonify({'starters': starters})
@@ -445,8 +447,6 @@ def send_message_route(recipient_id):
     media = request.files.get('media')
     media_url = None
     ai_response_flag = request.form.get('ai_response', 'false').lower() == 'true'
-    
-    
     
     moderation_result = moderate_content(content)
     if moderation_result['violates_guidelines']:
@@ -490,14 +490,12 @@ def send_message_route(recipient_id):
                 'timestamp': ai_message.timestamp.isoformat()
             }
             socketio.emit('new_message', ai_message_data, room=str(current_user.id))
-
-
     
     return redirect(url_for('messages', recipient_id=recipient_id))
 
 
 
-@cache.memoize(timeout=600) 
+
 def generate_ai_reply(content):
     prompt = f"""
     Given the following message, suggest a thoughtful and engaging reply:
@@ -514,7 +512,6 @@ def generate_ai_reply(content):
 
 @app.route('/generate_ai_reply/<int:recipient_id>', methods=['GET'])
 @login_required
-@cache.memoize(timeout=600) 
 def api_generate_ai_reply(recipient_id):
     # Fetch the latest message content from the chat with the recipient
     last_message = Message.query.filter_by(recipient_id=recipient_id, sender_id=current_user.id).order_by(Message.timestamp.desc()).first()
@@ -617,7 +614,6 @@ def suggest_conversation_starters(user_id, other_user_id):
 
 @app.route('/notifications')
 @login_required
-@cache.cached(timeout=60, key_prefix='notifications_%s')
 def notifications():
     notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
     return render_template('notifications.html', notifications=notifications)
@@ -773,6 +769,6 @@ def moderate_content(content):
         }
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    #with app.app_context():
+        #db.create_all()
     socketio.run(app, debug=True)
