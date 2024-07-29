@@ -601,7 +601,7 @@ def suggest_conversation_starters(user_id, other_user_id):
         User 1: {user.bio}
         User 2: {other_user.bio}
         
-        Provide engaging and relevant conversation starters that could help these users connect.
+        Provide engaging and relevant conversation starters that could help these users connect. Include relevant emojis and exclude asterisks in your responses.
         """
 
     response = model.generate_content(prompt)
