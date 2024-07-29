@@ -182,7 +182,7 @@
                             </div>
                         </div>
                         {% if post.author == current_user %}
-                            <button class="text-red-500 hover:text-red-700 delete-post-btn" data-post-id="{{ post.id }}">
+                            <button class="delete-post-btn" data-post-id="{{ post.id }} text-red-500" >
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         {% endif %}
@@ -429,8 +429,28 @@ function updateCommentCount(postId, change) {
             });
         
         
-        function deletePost(postId) {
-            fetch(`/delete_post/${postId}`, { method: 'DELETE' })
+            document.addEventListener('DOMContentLoaded', function() {
+                document.body.addEventListener('click', function(event) {
+                    if (event.target.classList.contains('delete-post-btn')) {
+                        const postId = event.target.getAttribute('data-post-id');
+                        if (confirm('Are you sure you want to delete this post?')) {
+                            deletePost(postId);
+                        }
+                    }
+                
+                });
+
+            });
+            
+            function deletePost(postId) {
+                fetch(`/delete_post/${postId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
@@ -439,16 +459,15 @@ function updateCommentCount(postId, change) {
                             postElement.remove();
                         }
                     } else {
-                        alert('An error occurred while deleting the post. Please try again.');
+                        alert('Error deleting post: ' + data.message);
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while deleting the post. Please try again.');
+                    alert('An error occurred while deleting the post.');
                 });
-        }
-        
-    })
+            }
+        })
         </script>
         
     

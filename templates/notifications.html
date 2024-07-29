@@ -8,36 +8,26 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .gradient-bg {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+        #notification-popup {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
 </head>
-<style>
-    @keyframes gradientBG {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-    .gradient-bg {
-        background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
-        background-size: 400% 400%;
-        animation: gradientBG 15s ease infinite;
-    }
-    .like-button i {
-        transition: color 0.3s ease, transform 0.3s ease;
-        color: gray;
-    }
-    .like-button:hover i {
-        transform: scale(1.2);
-    }
-    .like-button.liked i {
-        color: #e73c7e;
-    }
-    .post-card {
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .post-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-    }
-</style>
 <body class="bg-gray-100">
     <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
@@ -58,7 +48,6 @@
         </div>
         <div id="dropdown-menu" class="md:hidden hidden bg-gray-800 text-white absolute w-full mt-2 rounded-lg shadow-lg">
             <a href="/" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
-            <a href="https://micymike-michaelmosesbot.hf.space" class="text-white hover:text-gray-200 transition duration-300"><i class="fa-solid fa-robot"></i> Chat AI</a>
             <a href="/profile/{{ current_user.username }}" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
             <a href="/messages" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
             <a href="/notifications" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fa-solid fa-bell"></i> Notifications</a>
@@ -66,13 +55,9 @@
         </div>
     </nav>
 
-    <script>
-        // JavaScript to toggle the menu
-        document.getElementById('menu-toggle').addEventListener('click', function() {
-            var dropdownMenu = document.getElementById('dropdown-menu');
-            dropdownMenu.classList.toggle('hidden');
-        });
-    </script>
+    <div id="notification-popup" class="bg-blue-500 text-white p-4 rounded-lg shadow-lg">
+        <p id="notification-message"></p>
+    </div>
 
     <main class="container mx-auto mt-8">
         <div class="bg-white rounded-lg shadow-md p-8">
@@ -88,17 +73,30 @@
         </div>
     </main>
 
-    <footer class="bg-gray-800 text-white py-4 mt-8">
-        <div class="container mx-auto text-center">
-            © 2024 LuNa. All rights reserved.
-        </div>
-    </footer>
+
 
     <script>
+        // Toggle menu for mobile devices
+        document.getElementById('menu-toggle').addEventListener('click', function() {
+            var dropdownMenu = document.getElementById('dropdown-menu');
+            dropdownMenu.classList.toggle('hidden');
+        });
+
+        // Socket.io connection and notification handling
         const socket = io();
+        const notificationPopup = document.getElementById('notification-popup');
+        const notificationMessage = document.getElementById('notification-message');
         const notificationsContainer = document.getElementById('notifications-container');
 
         socket.on('new_notification', (data) => {
+            // Display pop-up notification
+            notificationMessage.textContent = data.content;
+            notificationPopup.style.display = 'block';
+            setTimeout(() => {
+                notificationPopup.style.display = 'none';
+            }, 5000); // Hide after 5 seconds
+
+            // Add new notification to the list
             const notificationDiv = document.createElement('div');
             notificationDiv.className = 'p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500';
             notificationDiv.innerHTML = `

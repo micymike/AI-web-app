@@ -642,6 +642,10 @@ def suggest_conversation_starters(user_id, other_user_id):
 @login_required
 def notifications():
     notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.timestamp.desc()).all()
+    # Mark all notifications as read
+    for notification in notifications:
+        notification.read = True
+    db.session.commit()
     return render_template('notifications.html', notifications=notifications)
 
 from tasks import create_notification as create_notification_task
