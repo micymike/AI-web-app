@@ -90,105 +90,105 @@
             <div class="w-full sm:w-1/4 pr-0 sm:pr-4 mb-4 sm:mb-0">
                 <div class="bg-white shadow rounded-lg p-4 mb-4 post-card">
                     {% if current_user.is_authenticated %}
-                    {% if current_user.profile_picture %}
-                    <img src="{{ url_for('static', filename='uploads/' + current_user.profile_picture) }}" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500">
-                {% else %}
-                    <div class="user-initial w-32 h-32 mx-auto mb-4 border-4 border-blue-500 text-5xl flex items-center justify-center rounded-full bg-gray-300 text-gray-600">
-                        {{ current_user.username[0].upper() }}
-                    </div>
-                {% endif %}
-                
-                <h2 class="text-xl font-bold text-center">{{ current_user.username }}</h2>
-                <p class="text-center mt-2">{{ current_user.bio or "No bio available" }}</p>
-                   {% else %}
+                        {% if current_user.profile_picture %}
+                            <img src="{{ url_for('static', filename='uploads/' + current_user.profile_picture) }}" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500">
+                        {% else %}
+                            <div class="user-initial w-32 h-32 mx-auto mb-4 border-4 border-blue-500 text-5xl flex items-center justify-center rounded-full bg-gray-300 text-gray-600">
+                                {{ current_user.username[0].upper() }}
+                            </div>
+                        {% endif %}
+                        
+                        <h2 class="text-xl font-bold text-center">{{ current_user.username }}</h2>
+                        <p class="text-center mt-2">{{ current_user.bio or "No bio available" }}</p>
+                    {% else %}
                         <p class="text-center">Please <a href="{{ url_for('login') }}" class="text-blue-500 hover:underline">log in</a> to see your profile.</p>
-                    {% endif %} 
+                    {% endif %}
                 </div>
             </div>
     
             <div class="w-full sm:w-3/4">
                 {% if current_user.is_authenticated %}
-                <div id="post-form" class="bg-white shadow rounded-lg p-4 mb-4">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="mb-4 p-3 {% if category == 'warning' %}bg-yellow-100 border border-yellow-400{% elif category == 'success' %}bg-green-100 border border-green-400{% elif category == 'error' %}bg-red-100 border border-red-400{% endif %} rounded">
-                                    <p>{{ message }}</p>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-                
-                    {% if violation_suggestions %}
-                    <div id="moderation-feedback" class="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded transition-all duration-300 ease-in-out">
-                        <p id="moderation-explanation" class="mb-2">Your post may violate community guidelines. Here are some suggestions:</p>
-                        <ul class="list-disc pl-5 mb-2">
-                            {% for suggestion in violation_suggestions %}
-                                <li>
-                                    <button class="suggestion-btn text-blue-500 hover:text-blue-700 underline">
-                                        {{ suggestion }}
-                                    </button>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                        <p class="mb-2">Original content:</p>
-                        <p class="italic">{{ original_content }}</p>
-                        <button id="edit-post" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300 ease-in-out">
-                            Edit and Resubmit
-                        </button>
-                    </div>
-                {% else %}
-                    <div id="moderation-feedback" class="hidden mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded transition-all duration-300 ease-in-out">
-                        <p id="moderation-explanation" class="mb-2"></p>
-                        <div id="word-suggestions" class="flex flex-wrap gap-2"></div>
-                    </div>
-                {% endif %}
-                
-                    <form id="create-post-form" method="POST" action="{{ url_for('post') }}" enctype="multipart/form-data">
-                        <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?"></textarea>
+                    <div id="post-form" class="bg-white shadow rounded-lg p-4 mb-4">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="mb-4 p-3 {% if category == 'warning' %}bg-yellow-100 border border-yellow-400{% elif category == 'success' %}bg-green-100 border border-green-400{% elif category == 'error' %}bg-red-100 border border-red-400{% endif %} rounded">
+                                        <p>{{ message }}</p>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
                         
-                        <div class="flex flex-wrap gap-2 mt-2">
-                            <input type="file" name="media" accept="image/*,video/*" class="hidden" id="media-upload">
-                            <label for="media-upload" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-blue-600 hover:bg-blue-700 transition duration-300 cursor-pointer">
-                                <i class="fas fa-image"></i>
-                                <span>Add Media</span>
-                            </label>
-                            <a href="https://content-gen-kw4y.onrender.com" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300">
-                                <i class="fas fa-magic"></i>
-                                <span>Content Generator</span>
-                            </a>
-                            <button type="submit" class="btn btn-primary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-blue-600 hover:bg-blue-700 transition duration-300">
-                                <i class="fas fa-paper-plane"></i>
-                                <span>Post</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                        {% if violation_suggestions %}
+                            <div id="moderation-feedback" class="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded transition-all duration-300 ease-in-out">
+                                <p id="moderation-explanation" class="mb-2">Your post may violate community guidelines. Here are some suggestions:</p>
+                                <ul class="list-disc pl-5 mb-2">
+                                    {% for suggestion in violation_suggestions %}
+                                        <li>
+                                            <button class="suggestion-btn text-blue-500 hover:text-blue-700 underline">
+                                                {{ suggestion }}
+                                            </button>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                                <p class="mb-2">Original content:</p>
+                                <p class="italic">{{ original_content }}</p>
+                                <button id="edit-post" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300 ease-in-out">
+                                    Edit and Resubmit
+                                </button>
+                            </div>
+                        {% else %}
+                            <div id="moderation-feedback" class="hidden mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded transition-all duration-300 ease-in-out">
+                                <p id="moderation-explanation" class="mb-2"></p>
+                                <div id="word-suggestions" class="flex flex-wrap gap-2"></div>
+                            </div>
+                        {% endif %}
+                        
+                        <form id="create-post-form" method="POST" action="{{ url_for('post') }}" enctype="multipart/form-data">
+                            <textarea id="post-content" name="content" rows="3" class="w-full p-2 border rounded" placeholder="What's on your mind?"></textarea>
+                            
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                <input type="file" name="media" accept="image/*,video/*" class="hidden" id="media-upload">
+                                <label for="media-upload" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-blue-600 hover:bg-blue-700 transition duration-300 cursor-pointer">
+                                    <i class="fas fa-image"></i>
+                                    <span>Add Media</span>
+                                </label>
+                                <a href="https://content-gen-kw4y.onrender.com" class="btn btn-secondary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-purple-600 hover:bg-purple-700 transition duration-300">
+                                    <i class="fas fa-magic"></i>
+                                    <span>Content Generator</span>
+                                </a>
+                                <button type="submit" class="btn btn-primary flex items-center space-x-2 py-2 px-4 rounded border-transparent bg-blue-600 hover:bg-blue-700 transition duration-300">
+                                    <i class="fas fa-paper-plane"></i>
+                                    <span>Post</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 {% endif %}
     
                 {% for post in all_posts %}
-                <div id="post-{{ post.id }}" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
-                    <div class="flex items-center mb-2 justify-between">
-                        <div class="flex items-center">
-                            {% if post.author.profile_picture %}
-                                <img src="{{ url_for('static', filename='uploads/' + post.author.profile_picture) }}" alt="Profile Picture" class="w-10 h-10 rounded-full mr-2">
-                            {% else %}
-                                <div class="user-initial mr-2">
-                                    {{ post.author.username[0].upper() }}
+                    <div id="post-{{ post.id }}" class="bg-white shadow rounded-lg p-4 mb-4 post-card">
+                        <div class="flex items-center mb-2 justify-between">
+                            <div class="flex items-center">
+                                {% if post.author.profile_picture %}
+                                    <img src="{{ url_for('static', filename='uploads/' + post.author.profile_picture) }}" alt="Profile Picture" class="w-10 h-10 rounded-full mr-2">
+                                {% else %}
+                                    <div class="user-initial mr-2">
+                                        {{ post.author.username[0].upper() }}
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <a href="{{ url_for('user_profile', username=post.author.username) }}" class="font-bold hover:underline">@{{ post.author.username }}</a>
+                                    <p class="text-sm text-gray-500">{{ post.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</p>
                                 </div>
-                            {% endif %}
-                            <div>
-                                <a href="{{ url_for('user_profile', username=post.author.username) }}" class="font-bold hover:underline">@{{ post.author.username }}</a>
-                                <p class="text-sm text-gray-500">{{ post.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</p>
                             </div>
-                        </div>
-                        {% if post.author == current_user %}
-                            <button class="delete-post-btn" data-post-id="{{ post.id }} text-red-500" r>
+                            {% if post.author == current_user %}
+                            <button class="delete-post-btn text-red-500" data-post-id="{{ post.id }}">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
-                        {% endif %}
-                    </div>
-                    <p class="mb-2">{{ post.content | replace_usernames | safe }}</p>
+                            {% endif %}
+                        </div>
+                        <p class="mb-2">{{ post.content | replace_usernames | safe }}</p>
                         {% if post.media_url %}
                             {% if post.media_url.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
                                 <img src="{{ url_for('static', filename='uploads/' + post.media_url) }}" alt="Post Media" class="w-full rounded-lg mb-2">
@@ -215,11 +215,69 @@
                                 <!-- Comments will be dynamically added here -->
                             </div>
                         </div>
-
+                    </div>
                 {% endfor %}
             </div>
         </div>
     </main>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.delete-post-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const postId = this.getAttribute('data-post-id');
+                    if (confirm('Are you sure you want to delete this post?')) {
+                        fetch(`/delete-post/${postId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }).then(response => response.json()).then(data => {
+                            if (data.status === 'success') {
+                                document.getElementById(`post-${postId}`).remove();
+                            } else {
+                                alert('Error deleting post');
+                            }
+                        }).catch(error => {
+                            console.error('Error:', error);
+                            alert('Error deleting post');
+                        });
+                    }
+                });
+            });
+        });
+    
+            window.addComment = (postId) => {
+                const commentInput = document.getElementById(`comment-input-${postId}`);
+                const commentSection = document.getElementById(`comment-section-${postId}`);
+                const commentsContainer = document.getElementById(`comments-${postId}`);
+                const commentText = commentInput.value.trim();
+    
+                if (commentText) {
+                    // Create a new comment element
+                    const commentElement = document.createElement('div');
+                    commentElement.textContent = commentText;
+                    commentElement.classList.add('comment', 'mb-2', 'p-2', 'bg-gray-100', 'rounded');
+                    
+                    // Add the new comment to the comments container
+                    commentsContainer.appendChild(commentElement);
+                    
+                    // Clear the comment input
+                    commentInput.value = '';
+                    
+                    // Hide the comment section
+                    commentSection.classList.add('hidden');
+                }
+            };
+        
+    
+        function toggleCommentSection(postId) {
+            const commentSection = document.getElementById(`comment-section-${postId}`);
+            if (commentSection) {
+                commentSection.classList.toggle('hidden');
+            }
+        }
+    </script>
     
     
 
@@ -420,47 +478,30 @@ function updateCommentCount(postId, change) {
 }
 
             // Function to handle "delete" button clicks
-            document.querySelectorAll('.delete-post-btn').forEach(button => {
-                button.addEventListener('click', function() {
-                    const postId = this.getAttribute('data-post-id');
-                    if (confirm('Are you sure you want to delete this post?')) {
-                        deletePost(postId);
-                    }
-                });
-            });
-        
-        
             document.addEventListener('DOMContentLoaded', function() {
-                document.body.addEventListener('click', function(event) {
-                    if (event.target.classList.contains('delete-post-btn')) {
-                        const postId = event.target.getAttribute('data-post-id');
-                        if (confirm('Are you sure you want to delete this post?')) {
-                            deletePost(postId);
-                        }
-                    }
-                
+                // Attach event listeners to delete buttons
+                document.querySelectorAll('.delete-post-btn').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const postId = this.getAttribute('data-post-id');
+                        deletePost(postId);
+                    });
                 });
-
             });
             
             function deletePost(postId) {
                 fetch(`/delete_post/${postId}`, {
                     method: 'DELETE',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    credentials: 'same-origin'
+                        'Content-Type': 'application/json'
+                    }
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'success') {
-                        const postElement = document.getElementById(`post-${postId}`);
-                        if (postElement) {
-                            postElement.remove();
-                        }
+                    if (data.message) {
+                        document.getElementById(`post-${postId}`).remove();
+                        alert(data.message);
                     } else {
-                        alert('Error deleting post: ' + data.message);
+                        alert(data.error);
                     }
                 })
                 .catch(error => {

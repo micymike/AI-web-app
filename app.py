@@ -416,22 +416,14 @@ def delete_comment(comment_id):
     db.session.commit()
     return jsonify({'message': 'Comment deleted successfully'}), 200
 
-@app.route('/delete_post/<int:post_id>', methods=['DELETE'])
-@login_required
+@app.route('/delete-post/<int:post_id>', methods=['DELETE'])
 def delete_post(post_id):
-    post = Post.query.get_or_404(post_id)
-    if post.author != current_user:
-        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
-    
-    # Manually delete all comments associated with the post
-    for comment in post.comments:
-        db.session.delete(comment)
-    
-    db.session.delete(post)
-    db.session.commit()
-    
-    return jsonify({'status': 'success', 'message': 'Post deleted successfully'}), 200
-
+    post = Post.query.get(post_id)
+    if post:
+        db.session.delete(post)
+        db.session.commit()
+        return jsonify({"status": "success"}), 200
+    return jsonify({"status": "error", "message": "Post not found"}), 404
 
 
 

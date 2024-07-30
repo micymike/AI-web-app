@@ -140,7 +140,7 @@
     
             <!-- Posts Section -->
             <h2 class="text-2xl font-bold mb-6 text-gray-800"><i class="fas fa-stream mr-2 text-blue-500"></i>Recent Posts</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div id="posts-container" class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {% for post in posts %}
                     <div class="bg-white p-6 rounded-lg shadow-md post-card hover:shadow-lg transition duration-300">
                         <div class="flex items-center mb-4">
@@ -157,13 +157,32 @@
                         <div class="flex items-center text-gray-500 text-sm">
                             <button class="mr-6 hover:text-blue-500 transition duration-300 flex items-center"><i class="far fa-heart mr-2"></i> Like</button>
                             <button class="mr-6 hover:text-blue-500 transition duration-300 flex items-center"><i class="far fa-comment mr-2"></i> Comment</button>
-                            <button class="hover:text-blue-500 transition duration-300 flex items-center"><i class="far fa-share-square mr-2"></i> Share</button>
+                            <button class="mr-6 hover:text-blue-500 transition duration-300 flex items-center"><i class="far fa-share-square mr-2"></i> Share</button>
+                            <button class="delete-btn text-red-500 hover:text-red-700 transition duration-300 flex items-center"><i class="fas fa-trash mr-2"></i> Delete</button>
                         </div>
                     </div>
                 {% endfor %}
             </div>
         </div>
     </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const deleteButtons = document.querySelectorAll('.delete-btn');
+            
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Find the parent post card element
+                    const postCard = button.closest('.post-card');
+                    
+                    // Remove the post card from the DOM
+                    if (postCard) {
+                        postCard.remove();
+                    }
+                });
+            });
+        });
+    </script>
     <footer class="bg-gray-800 text-white py-8 mt-12">
         <div class="container mx-auto text-center">
             <p class="mb-2">© 2024 LuNa. All rights reserved.</p>
