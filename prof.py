@@ -25,13 +25,14 @@ def allowed_file(filename):
 
 @profile.route('/profile/<username>')
 @login_required
-@cache.cached(timeout=300) 
+@cache.cached(timeout=300)
 def user_profile(username):
     user = User.query.filter_by(username=username).first_or_404()
     posts = Post.query.filter_by(author=user).order_by(Post.timestamp.desc()).all()
     followers_count = user.followers.count()
     following_count = user.followed.count()
     posts_count = user.posts.count()
+    timestamp = datetime.now().timestamp()
 
     return render_template(
         'profile.html',
@@ -40,8 +41,10 @@ def user_profile(username):
         posts=posts,
         followers_count=followers_count,
         following_count=following_count,
-        posts_count=posts_count
+        posts_count=posts_count,
+        timestamp=timestamp
     )
+
 
 @profile.route('/edit_profile', methods=['GET', 'POST'])
 @login_required

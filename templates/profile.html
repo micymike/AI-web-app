@@ -6,6 +6,7 @@
     <title>{{ user.username }}'s Profile - LuNa</title>
     <link rel="shortcut icon" href="{{ url_for('static', filename='Luna-icon.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -36,9 +37,9 @@
         }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-50">
     <!-- Navigation Bar -->
-    <nav class="gradient-bg p-4 shadow-lg sticky top-0 z-50">
+    <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
             <a href="/" class="text-white text-2xl font-bold flex items-center">
                 <i class="fas fa-globe mr-2"></i>
@@ -49,6 +50,7 @@
             </button>
             <div id="menu" class="hidden md:flex space-x-4">
                 <a href="/" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
+                <a href="https://micymike-michaelmosesbot.hf.space" class="text-white hover:text-gray-200 transition duration-300"><i class="fa-solid fa-robot"></i> Chat AI</a>
                 <a href="/profile/{{ current_user.username }}" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
                 <a href="/messages" class="text-white hover:text-gray-200 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
                 <a href="/notifications" class="text-white hover:text-gray-200 transition duration-300"><i class="fa-solid fa-bell"></i> Notifications</a>
@@ -57,7 +59,7 @@
         </div>
         <div id="dropdown-menu" class="md:hidden hidden bg-gray-800 text-white absolute w-full mt-2 rounded-lg shadow-lg">
             <a href="/" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-home mr-1"></i> Home</a>
-            <a href="https://micymike-michaelmosesbot.hf.space" class="text-white hover:text-gray-200 transition duration-300"><i class="fa-solid fa-robot"></i> Chat AI</a>
+            <a href="https://micymike-michaelmosesbot.hf.space" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fa-solid fa-robot"></i> Chat AI</a>
             <a href="/profile/{{ current_user.username }}" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
             <a href="/messages" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
             <a href="/notifications" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fa-solid fa-bell"></i> Notifications</a>
@@ -66,52 +68,55 @@
     </nav>
 
     <main class="container mx-auto mt-8 px-4 sm:px-6 lg:px-8">
-        <div class="bg-white rounded-lg shadow-md p-6 sm:p-8 md:p-10 lg:p-12">
+        <div class="bg-white rounded-lg shadow-lg p-6 sm:p-8 md:p-10 lg:p-12">
             <!-- User Info Section -->
-            <div class="flex flex-col md:flex-row items-center mb-6">
-                {% if user.profile_picture %}
-                    <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}'s profile picture" class="w-32 h-32 rounded-full mr-6 mb-4 md:mb-0 shadow-lg">
-                {% else %}
-                    <div class="w-32 h-32 rounded-full mr-6 mb-4 md:mb-0 shadow-lg bg-gray-300 flex items-center justify-center text-3xl font-bold text-gray-600">
-                        {{ user.username[0].upper() }}
-                    </div>
-                {% endif %}
-                
-                <div class="text-center md:text-left">
-                    <h1 class="text-3xl font-bold mb-2">{{ user.username }}</h1>
-                    <p class="text-gray-600 mb-1">{{ user.email }}</p>
-                    <p class="text-gray-600 mb-3">Joined {{ user.date_joined.strftime('%B %Y') if user.date_joined else 'Date not available' }}</p>
+            <div class="flex flex-col md:flex-row items-center mb-8">
+                <div class="mb-6 md:mb-0 md:mr-8">
+                    {% if user.profile_picture %}
+                        <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}?t={{ timestamp }}" alt="{{ user.username }}'s profile picture" class="w-40 h-40 rounded-full shadow-xl border-4 border-blue-500">
+                    {% else %}
+                        <div class="w-40 h-40 rounded-full shadow-xl bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-5xl font-bold text-white">
+                            {{ user.username[0].upper() }}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="text-center md:text-left flex-grow">
+                    <h1 class="text-4xl font-bold mb-2 text-gray-800">{{ user.username }}</h1>
+                    <p class="text-gray-600 mb-1"><i class="far fa-envelope mr-2"></i>{{ user.email }}</p>
+                    <p class="text-gray-600 mb-4"><i class="far fa-calendar-alt mr-2"></i>Joined {{ user.date_joined.strftime('%B %Y') if user.date_joined else 'Date not available' }}</p>
                     
                     {% if current_user.id != user.id %}
-                        <button id="followBtn" data-username="{{ user.username }}" class="follow-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full transition duration-300 ease-in-out transform hover:scale-105">
+                        <button id="followBtn" data-username="{{ user.username }}" class="follow-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
                             {% if not current_user.is_following(user) %}
-                                Follow
+                                <i class="fas fa-user-plus mr-2"></i>Follow
                             {% else %}
-                                Unfollow
+                                <i class="fas fa-user-minus mr-2"></i>Unfollow
                             {% endif %}
                         </button>
                     {% else %}
-                        <a href="{{ url_for('prof.edit_profile') }}" class="inline-block bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-full transition duration-300 ease-in-out transform hover:scale-105">
-                            Edit Profile
+                        <a href="{{ url_for('prof.edit_profile') }}" class="inline-block bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-full transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                            <i class="fas fa-user-edit mr-2"></i>Edit Profile
                         </a>
                     {% endif %}
                 </div>
             </div>
+    
             <!-- Bio Section -->
-            <div class="bg-gray-50 p-6 rounded-lg mb-6 shadow-sm">
-                <h2 class="text-xl font-semibold mb-3">About</h2>
-                <p class="text-gray-700">{{ user.bio or "No bio available" }}</p>
+            <div class="bg-gray-50 p-6 rounded-lg mb-8 shadow-sm hover:shadow-md transition duration-300">
+                <h2 class="text-2xl font-semibold mb-3 text-gray-800"><i class="fas fa-info-circle mr-2 text-blue-500"></i>About</h2>
+                <p class="text-gray-700 leading-relaxed">{{ user.bio or "No bio available" }}</p>
             </div>
-
+    
             <!-- Stats Section -->
-            <div class="flex flex-wrap justify-between mb-8">
-                <div class="w-full sm:w-1/3 text-center p-6 bg-blue-100 rounded-lg m-2 shadow-sm transition duration-300 hover:shadow-md">
-                    <span class="text-3xl font-bold text-blue-600">{{ posts_count }}</span>
-                    <p class="text-gray-600">Posts</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div class="text-center p-6 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg shadow-sm transition duration-300 hover:shadow-md transform hover:-translate-y-1">
+                    <span class="text-4xl font-bold text-blue-600">{{ posts_count }}</span>
+                    <p class="text-gray-600 mt-2"><i class="fas fa-pencil-alt mr-2"></i>Posts</p>
                 </div>
-                <div class="w-full sm:w-1/3 text-center p-6 bg-green-100 rounded-lg m-2 shadow-sm transition duration-300 hover:shadow-md">
-                    <span id="followerCount" class="text-3xl font-bold text-green-600">{{ followers_count }}</span>
-                    <p id="followerText" class="text-gray-600">
+                <div class="text-center p-6 bg-gradient-to-br from-green-100 to-green-200 rounded-lg shadow-sm transition duration-300 hover:shadow-md transform hover:-translate-y-1">
+                    <span id="followerCount" class="text-4xl font-bold text-green-600">{{ followers_count }}</span>
+                    <p id="followerText" class="text-gray-600 mt-2">
+                        <i class="fas fa-users mr-2"></i>
                         {% if followers_count == 1 %}
                             1 follower
                         {% else %}
@@ -119,31 +124,33 @@
                         {% endif %}
                     </p>
                 </div>
-                <div class="w-full sm:w-1/3 text-center p-6 bg-purple-100 rounded-lg m-2 shadow-sm transition duration-300 hover:shadow-md">
-                    <span class="text-3xl font-bold text-purple-600">{{ following_count }}</span>
-                    <p class="text-gray-600">Following</p>
+                <div class="text-center p-6 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg shadow-sm transition duration-300 hover:shadow-md transform hover:-translate-y-1">
+                    <span class="text-4xl font-bold text-purple-600">{{ following_count }}</span>
+                    <p class="text-gray-600 mt-2"><i class="fas fa-user-friends mr-2"></i>Following</p>
                 </div>
             </div>
-
+    
             <!-- Activity Chart -->
             <div class="mb-12">
-                <h2 class="text-2xl font-bold mb-6">Activity Overview</h2>
-                <canvas id="activityChart" width="400" height="200"></canvas>
+                <h2 class="text-2xl font-bold mb-6 text-gray-800"><i class="fas fa-chart-line mr-2 text-blue-500"></i>Activity Overview</h2>
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <canvas id="activityChart" width="400" height="200"></canvas>
+                </div>
             </div>
-
+    
             <!-- Posts Section -->
-            <h2 class="text-2xl font-bold mb-6">Recent Posts</h2>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800"><i class="fas fa-stream mr-2 text-blue-500"></i>Recent Posts</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {% for post in posts %}
-                    <div class="bg-white p-6 rounded-lg shadow-md post-card">
+                    <div class="bg-white p-6 rounded-lg shadow-md post-card hover:shadow-lg transition duration-300">
                         <div class="flex items-center mb-4">
                             <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-12 h-12 rounded-full mr-4">
                             <div>
-                                <p class="font-semibold text-lg">{{ user.username }}</p>
-                                <p class="text-gray-500 text-sm">{{ post.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+                                <p class="font-semibold text-lg text-gray-800">{{ user.username }}</p>
+                                <p class="text-gray-500 text-sm">{{ post.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</p>
                             </div>
                         </div>
-                        <p class="mb-4 text-gray-800">{{ post.content }}</p>
+                        <p class="mb-4 text-gray-800 leading-relaxed">{{ post.content }}</p>
                         {% if post.media_url %}
                             <img src="{{ url_for('static', filename=post.media_url) }}" alt="Post media" class="w-full rounded-lg mb-4 shadow-sm">
                         {% endif %}
@@ -157,7 +164,6 @@
             </div>
         </div>
     </main>
-
     <footer class="bg-gray-800 text-white py-8 mt-12">
         <div class="container mx-auto text-center">
             <p class="mb-2">© 2024 LuNa. All rights reserved.</p>

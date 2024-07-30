@@ -165,17 +165,32 @@ def user_profile(username):
 @login_required
 def edit_profile():
     if request.method == 'POST':
-        current_user.bio = request.form['bio']
+        username = request.form.get('username')
+        email = request.form.get('email')
+        bio = request.form.get('bio')
+        location = request.form.get('location')
+
+        if username:
+            current_user.username = username
+        if email:
+            current_user.email = email
+        if bio:
+            current_user.bio = bio
+        if location:
+            current_user.location = location
+
         if 'profile_picture' in request.files:
             file = request.files['profile_picture']
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                file.save(os.path.join('static/uploads', filename))
                 current_user.profile_picture = filename
+
         db.session.commit()
-        flash('Profile updated successfully')
-        return redirect(url_for('profile', username=current_user.username))
-    return render_template('edit_profile.html')
+        flash('Your profile has been updated.', 'success')
+        return redirect(url_for('prof.user_profile', username=current_user.username))
+
+    return render_template('edit_profile.html', user=current_user)
 
 @app.route('/api/follow/<username>', methods=['POST'])
 @login_required
