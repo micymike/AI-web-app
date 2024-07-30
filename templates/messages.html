@@ -220,151 +220,125 @@
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
 
     <script>
-      // Establish socket connection
-      let page = 1;
-const pageSize = 20;
+  // Establish socket connection
+  const socket = io({
+    transports: ['websocket'],
+    upgrade: false
+  });
 
-function loadMoreMessages() {
-  axios.get(`/api/messages?page=${page}&pageSize=${pageSize}`)
-    .then(response => {
-      // Prepend messages to the chat
-      prependMessages(response.data.messages);
-      page++;
-    });
-}
-const socket = io({
-  transports: ['websocket'],
-  upgrade: false
-});
+  // DOM elements
+  const messages = document.getElementById('messages');
+  const aiReplyBtn = document.getElementById('aiReply');
+  const showStartersBtn = document.getElementById('showStarters');
+  const startersList = document.getElementById('startersList');
+  const conversationStarters = document.getElementById('conversation-starters');
+  const messageInput = document.querySelector('input[name="content"]');
+  const sendMessageBtn = document.querySelector('button.send-button');
+  const clearChatBtn = document.getElementById('clearChat');
 
-import { FixedSizeList as List } from 'react-window';
+  // Replace with actual recipient ID
+  let recipientId = '{{ recipient.id if recipient else "null" }}'; // Ensure recipient ID is available
 
-function ChatList({ messages }) {
-  return (
-    <List
-      height={400}
-      itemCount={messages.length}
-      itemSize={50}
-      width={300}
-    >
-      {({ index, style }) => (
-        <div style={style}>{messages[index].content}</div>
-      )}
-    </List>
-  );
-}
-
-document.getElementById('menu-toggle').addEventListener('click', function() {
-  var dropdownMenu = document.getElementById('dropdown-menu');
-  dropdownMenu.classList.toggle('hidden');
-});
-// DOM elements
-const messages = document.getElementById('messages');
-const aiReplyBtn = document.getElementById('aiReply');
-const showStartersBtn = document.getElementById('showStarters');
-const startersList = document.getElementById('startersList');
-const conversationStarters = document.getElementById('conversation-starters');
-const messageInput = document.getElementById('messageInput');
-const sendMessageBtn = document.getElementById('sendMessage');
-const clearChatBtn = document.getElementById('clearChat');
-
-
-// Show Conversation Starters functionality
-showStartersBtn.addEventListener('click', () => {
-  const recipientId = recipientId || null;
-  if (recipientId) {
-    axios.get(`/api/conversation_starters/${recipientId}`)
-      .then(response => {
-        startersList.innerHTML = '';
-        response.data.starters.forEach(starter => {
-          const li = document.createElement('li');
-          li.textContent = starter.replace(/\*/g, ''); // Remove asterisks
-          li.classList.add('cursor-pointer', 'hover:bg-gray-200', 'p-2', 'rounded');
-          li.addEventListener('click', () => {
-            messageInput.value = starter;
-            conversationStarters.classList.add('hidden');
-          });
-          startersList.appendChild(li);
-        });
-        conversationStarters.classList.toggle('hidden');
-      })
-      .catch(error => {
-        console.error('Error fetching conversation starters:', error);
-      });
-  }
-});
-
-// Send message functionality
-sendMessageBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    sendMessage();
-  }
-});
-
-function sendMessage() {
-  const content = messageInput.value.trim();
-  if (content) {
-    const recipientId = recipientId || null;
+  // Show Conversation Starters functionality
+  showStartersBtn.addEventListener('click', () => {
     if (recipientId) {
-      axios.post('/send_message', { recipient_id: recipientId, content: content })
+      axios.get(`/api/conversation_starters/${recipientId}`)
         .then(response => {
-          addMessageToChat(content, false);
-          messageInput.value = '';
+          startersList.innerHTML = '';
+          response.data.starters.forEach(starter => {
+            const li = document.createElement('li');
+            li.textContent = starter.replace(/\*/g, ''); // Remove asterisks
+            li.classList.add('cursor-pointer', 'hover:bg-gray-200', 'p-2', 'rounded');
+            li.addEventListener('click', () => {
+              messageInput.value = starter;
+              conversationStarters.classList.add('hidden');
+            });
+            startersList.appendChild(li);
+          });
+          conversationStarters.classList.toggle('hidden');
         })
         .catch(error => {
-          console.error('Error sending message:', error);
+          console.error('Error fetching conversation starters:', error);
         });
+    } else {
+      console.warn('Recipient ID is not available.');
+    }
+  });
+
+  // Send message functionality
+  function sendMessage() {
+    const content = messageInput.value.trim();
+    if (content) {
+      const recipientId = recipientId || null;
+      if (recipientId) {
+        axios.post('/send_message', { recipient_id: recipientId, content: content })
+          .then(response => {
+            addMessageToChat(content, false);
+            messageInput.value = '';
+          })
+          .catch(error => {
+            console.error('Error sending message:', error);
+          });
+      }
     }
   }
-}
 
-// Clear chat functionality
-clearChatBtn.addEventListener('click', () => {
-  const recipientId = recipientId || null;
-  if (recipientId && confirm('Are you sure you want to clear this chat?')) {
-    axios.post(`/clear_chat/${recipientId}`)
-      .then(() => {
-        messages.innerHTML = '';
-      })
-      .catch(error => {
-        console.error('Error clearing chat:', error);
-      });
-  }
-});
+  sendMessageBtn.addEventListener('click', sendMessage);
+  messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
 
-// Socket.io event listeners
-socket.on('new_message', (data) => {
-  addMessageToChat(data.content, data.sender_id !== currentUserId);
-});
+  // Clear chat functionality
+  clearChatBtn.addEventListener('click', () => {
+    const recipientId = recipientId || null;
+    if (recipientId && confirm('Are you sure you want to clear this chat?')) {
+      axios.post(`/clear_chat/${recipientId}`)
+        .then(() => {
+          messages.innerHTML = '';
+        })
+        .catch(error => {
+          console.error('Error clearing chat:', error);
+        });
+    }
+  });
 
-// Helper function to add a message to the chat
-function addMessageToChat(content, isReceived) {
-  const messageDiv = document.createElement('div');
-  messageDiv.classList.add('flex', 'items-start', 'mb-4');
-  if (!isReceived) {
-    messageDiv.classList.add('justify-end');
-  }
-  
-  messageDiv.innerHTML = `
-    ${isReceived ? `<img src="${recipientProfilePicture}" alt="${recipientUsername}" class="w-8 h-8 rounded-full mr-2">` : ''}
-    <div class="${isReceived ? 'ml-2' : 'mr-2'}">
-      <div class="chat-bubble ${isReceived ? 'left' : 'right'}">
-        ${content}
+  // Socket.io event listeners
+  socket.on('new_message', (data) => {
+    addMessageToChat(data.content, data.sender_id !== currentUserId);
+  });
+
+  // Helper function to add a message to the chat
+  function addMessageToChat(content, isReceived) {
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('flex', 'items-start', 'mb-4');
+    if (!isReceived) {
+      messageDiv.classList.add('justify-end');
+    }
+
+    messageDiv.innerHTML = `
+      ${isReceived ? `<img src="${recipientProfilePicture}" alt="${recipientUsername}" class="w-8 h-8 rounded-full mr-2">` : ''}
+      <div class="${isReceived ? 'ml-2' : 'mr-2'}">
+        <div class="chat-bubble ${isReceived ? 'left' : 'right'}">
+          ${content}
+        </div>
+        <span class="message-timestamp">${new Date().toLocaleTimeString()}</span>
       </div>
-      <span class="message-timestamp">${new Date().toLocaleTimeString()}</span>
-    </div>
-  `;
-  
-  messages.appendChild(messageDiv);
-  messages.scrollTop = messages.scrollHeight;
-}
+    `;
 
-// Initialize tooltips
-tippy('[data-tippy-content]');
+    messages.appendChild(messageDiv);
+    messages.scrollTop = messages.scrollHeight;
+  }
 
-// Add smooth scrolling to messages container
-messages.style.scrollBehavior = 'smooth';
+  // Initialize tooltips (make sure Tippy.js is included if using)
+  if (typeof tippy === 'function') {
+    tippy('[data-tippy-content]');
+  }
+
+  // Add smooth scrolling to messages container
+  messages.style.scrollBehavior = 'smooth';
     </script>
 </body>
 </html>

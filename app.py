@@ -437,7 +437,7 @@ def conversations():
 @app.route('/messages/', defaults={'recipient_id': None})
 @app.route('/messages/<int:recipient_id>')
 @login_required
-@cache.cached(timeout=60, key_prefix='messages_%s')  # Cache for 1 minute
+#@cache.cached(timeout=60, key_prefix='messages_%s')  # Cache for 1 minute
 def messages(recipient_id):
     available_users = get_available_users()
     
@@ -459,8 +459,13 @@ def messages(recipient_id):
 @app.route('/api/conversation_starters/<int:other_user_id>')
 @login_required
 def api_conversation_starters(other_user_id):
-    starters = suggest_conversation_starters(current_user.id, other_user_id)
-    return jsonify({'starters': starters})
+    try:
+        starters = suggest_conversation_starters(current_user.id, other_user_id)
+        return jsonify({'starters': starters})
+    except Exception as e:
+        app.logger.error(f"Error fetching conversation starters: {e}")
+        return jsonify({'error': 'Internal Server Error'}), 500
+
 
 @app.route('/send_message/<int:recipient_id>', methods=['POST'])
 @login_required
@@ -631,19 +636,32 @@ def get_available_users():
     return [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
 
 def suggest_conversation_starters(user_id, other_user_id):
-    user = User.query.get(user_id)
-    other_user = User.query.get(other_user_id)
-    prompt = f"""
-        Suggest 3 conversation starters for two users based on their profiles:
-        
-        User 1: {user.bio}
-        User 2: {other_user.bio}
-        
-        Provide engaging and relevant conversation starters that could help these users connect. Include relevant emojis and exclude asterisks in your responses.
-        """
+    try:
+        user = User.query.get(user_id)
+        other_user = User.query.get(other_user_id)
+        if not user or not other_user:
+            raise ValueError("User not found")
 
-    response = model.generate_content(prompt)
-    return response.text.split('\n')
+        prompt = f"""
+            Suggest 3 conversation starters for two users based on their profiles:
+            
+            User 1: {user.bio}
+            User 2: {other_user.bio}
+            
+            Provide engaging and relevant conversation starters that could help these users connect. Include relevant emojis and exclude asterisks in your responses.
+            """
+
+        response = model.generate_content(prompt)
+        
+        if response and hasattr(response, 'text'):
+            return response.text.split('\n')
+        else:
+            raise ValueError("Invalid response from model")
+
+    except Exception as e:
+        app.logger.error(f"Error generating conversation starters: {e}")
+        return ["Sorry, we couldn't generate conversation starters at the moment."]
+
 
 @app.route('/notifications')
 @login_required
@@ -676,21 +694,8 @@ def get_available_users():
     users = User.query.filter(User.id != current_user.id).all()
     return [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
 
-@cache.memoize(300)
-def suggest_conversation_starters(user_id, other_user_id):
-    user = User.query.get(user_id)
-    other_user = User.query.get(other_user_id)
-    prompt = f"""
-        Suggest 3 conversation starters for two users based on their profiles:
-        
-        User 1: {user.bio}
-        User 2: {other_user.bio}
-        
-        Provide engaging and relevant conversation starters that could help these users connect.
-        """
 
-    response = model.generate_content(prompt)
-    return response.text.split('\n')
+
 
 
     
