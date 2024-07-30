@@ -148,18 +148,14 @@
         <div class="flex flex-col md:flex-row">
             <!-- User List -->
             <div class="w-full md:w-1/4 bg-white p-4 rounded-lg shadow mb-4 md:mb-0">
-                <h2 class="text-lg font-bold mb-4">Users</h2>
-                <ul>
-                    {% for user in available_users %}
-                        <li>
-                            <a href="{{ url_for('messages', recipient_id=user.id) }}" class="flex items-center p-2 rounded-lg hover:bg-gray-200">
-                                <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full">
-                                <span class="ml-3">{{ user.username }}</span>
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
+              <h2 class="text-lg font-bold mb-4">Users</h2>
+              {% for user in available_users %}
+              <a href="{{ url_for('messages', recipient_id=user.id) }}" class="user-link flex items-center p-2 rounded-lg hover:bg-gray-200" data-user-id="{{ user.id }}">
+                  <img src="{{ url_for('static', filename='uploads/' + user.profile_picture) }}" alt="{{ user.username }}" class="w-10 h-10 rounded-full">
+                  <span class="ml-3">{{ user.username }}</span>
+              </a>
+              {% endfor %}
+          </div>
 
             <!-- Chat Area -->
             <div class="w-full md:w-3/4 bg-white p-4 rounded-lg shadow ml-0 md:ml-4 flex flex-col">
@@ -242,25 +238,41 @@
         if (messageForm) {
             messageForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                sendMessage();
+                if (recipientId) {
+                    sendMessage();
+                } else {
+                    alert('Please select a user to chat with first.');
+                }
             });
         }
     
         if (showStartersBtn) {
             showStartersBtn.addEventListener('click', function() {
-                toggleConversationStarters();
+                if (recipientId) {
+                    toggleConversationStarters();
+                } else {
+                    alert('Please select a user to chat with first.');
+                }
             });
         }
     
         if (clearChatBtn) {
             clearChatBtn.addEventListener('click', function() {
-                clearChat();
+                if (recipientId) {
+                    clearChat();
+                } else {
+                    alert('Please select a user to chat with first.');
+                }
             });
         }
     
         if (aiReplyBtn) {
             aiReplyBtn.addEventListener('click', function() {
-                generateAIReply();
+                if (recipientId) {
+                    generateAIReply();
+                } else {
+                    alert('Please select a user to chat with first.');
+                }
             });
         }
     
@@ -271,10 +283,16 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrf_token')  // Add CSRF token if you're using it
                     },
                     body: `content=${encodeURIComponent(content)}`
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.error) {
                         console.error('Error:', data.error);
@@ -307,7 +325,12 @@
         function toggleConversationStarters() {
             if (conversationStarters.classList.contains('hidden')) {
                 fetch(`/api/conversation_starters/${recipientId}`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         startersList.innerHTML = '';
                         data.starters.forEach(starter => {
@@ -332,8 +355,16 @@
             if (confirm('Are you sure you want to clear the chat history?')) {
                 fetch(`/delete_chat_history/${recipientId}`, {
                     method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrf_token')  // Add CSRF token if you're using it
+                    },
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         messagesContainer.innerHTML = '';
@@ -348,8 +379,16 @@
         function generateAIReply() {
             fetch(`/generate_ai_reply/${recipientId}`, {
                 method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrf_token')  // Add CSRF token if you're using it
+                },
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.error) {
                     console.error('Error:', data.error);
@@ -363,37 +402,38 @@
             })
             .catch(error => console.error('Error:', error));
         }
-    });
-
-    let recipientId = new URLSearchParams(window.location.search).get('recipient_id');
-
-    if (showStartersBtn) {
-        showStartersBtn.addEventListener('click', function() {
-            if (recipientId) {
-                toggleConversationStarters();
-            } else {
-                alert('Please select a user to chat with first.');
+    
+        // Helper function to get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
             }
-        });
-    }
-
-    if (aiReplyBtn) {
-        aiReplyBtn.addEventListener('click', function() {
-            if (recipientId) {
-                generateAIReply();
-            } else {
-                alert('Please select a user to chat with first.');
-            }
-        });
-    }
-
-    function toggleConversationStarters() {
-        if (!recipientId) {
-            console.error('No recipient selected');
-            return;
+            return cookieValue;
         }
-        if (conversationStarters.classList.contains('hidden')) {
-            fetch(`/api/conversation_starters/${recipientId}`)
+    
+        // Update recipientId when a new user is selected
+        const userLinks = document.querySelectorAll('.user-link');
+        userLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                recipientId = this.getAttribute('data-user-id');
+                // Update the URL without reloading the page
+                history.pushState(null, '', `/messages/${recipientId}`);
+                // You might want to load the chat history for the new recipient here
+                loadChatHistory(recipientId);
+            });
+        });
+    
+        function loadChatHistory(recipientId) {
+            fetch(`/get_messages/${recipientId}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -401,41 +441,12 @@
                     return response.json();
                 })
                 .then(data => {
-                    // ... (rest of the function remains the same)
+                    messagesContainer.innerHTML = '';
+                    data.messages.forEach(message => appendMessage(message));
                 })
                 .catch(error => console.error('Error:', error));
-        } else {
-            conversationStarters.classList.add('hidden');
         }
-    }
-
-    function generateAIReply() {
-        if (!recipientId) {
-            console.error('No recipient selected');
-            return;
-        }
-        fetch(`/generate_ai_reply/${recipientId}`, {
-            method: 'POST',
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.error) {
-                console.error('Error:', data.error);
-            } else {
-                appendMessage({
-                    sender_id: recipientId,
-                    content: data.reply,
-                    timestamp: new Date().toISOString()
-                });
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
+    });
     </script>
 </body>
 </html>

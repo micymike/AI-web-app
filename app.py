@@ -502,58 +502,31 @@ def get_conversation_starters(user_id, other_user_id):
     return all_starters[:5]
 @app.route('/send_message/<int:recipient_id>', methods=['POST'])
 @login_required
-@cache.memoize(300)
 def send_message_route(recipient_id):
     content = request.form['content']
-    media = request.files.get('media')
-    media_url = None
-    ai_response_flag = request.form.get('ai_response', 'false').lower() == 'true'
     
-    moderation_result = moderate_content(content)
-    if moderation_result['violates_guidelines']:
-        flash('Content violates guidelines: ' + moderation_result['explanation'])
-        return redirect(url_for('messages', recipient_id=recipient_id))
+    if not content.strip():
+        return jsonify({"error": "Message content cannot be empty"}), 400
+
+    new_message = Message(
+        sender_id=current_user.id,
+        recipient_id=recipient_id,
+        content=content,
+        timestamp=datetime.utcnow()
+    )
     
-    if media and allowed_file(media.filename):
-        filename = secure_filename(media.filename)
-        media_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        media.save(media_path)
-        media_url = url_for('static', filename=f'uploads/{filename}')
-    
-    new_message, error = send_message_helper(current_user.id, recipient_id, content, media_url)
-    
-    if error:
-        flash('Error sending message: ' + error)
-        return redirect(url_for('messages', recipient_id=recipient_id))
-    
-    message_data = {
+    db.session.add(new_message)
+    db.session.commit()
+
+    return jsonify({
         'id': new_message.id,
         'sender_id': current_user.id,
         'recipient_id': recipient_id,
         'content': content,
-        'media_url': media_url,
-        'timestamp': new_message.timestamp.isoformat()
-    }
-    
-    socketio.emit('new_message', message_data, room=str(recipient_id))
-    socketio.emit('new_message', message_data, room=str(current_user.id))
-    
-    # Generate AI reply if the flag is set
-    if ai_response_flag:
-        ai_reply = generate_ai_reply(content)
-        if ai_reply:
-            ai_message, _ = send_message_helper(recipient_id, current_user.id, ai_reply)
-            ai_message_data = {
-                'id': ai_message.id,
-                'sender_id': recipient_id,
-                'recipient_id': current_user.id,
-                'content': ai_reply,
-                'timestamp': ai_message.timestamp.isoformat()
-            }
-            socketio.emit('new_message', ai_message_data, room=str(current_user.id))
-    
-    return redirect(url_for('messages', recipient_id=recipient_id))
-
+        'timestamp': new_message.timestamp.isoformat(),
+        'sender_username': current_user.username,
+        'sender_profile_picture': current_user.profile_picture
+    }), 200
 
 
 
