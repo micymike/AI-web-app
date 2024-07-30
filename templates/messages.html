@@ -254,6 +254,10 @@ function ChatList({ messages }) {
   );
 }
 
+document.getElementById('menu-toggle').addEventListener('click', function() {
+  var dropdownMenu = document.getElementById('dropdown-menu');
+  dropdownMenu.classList.toggle('hidden');
+});
 // DOM elements
 const messages = document.getElementById('messages');
 const aiReplyBtn = document.getElementById('aiReply');
