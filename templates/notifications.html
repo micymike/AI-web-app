@@ -51,7 +51,7 @@
             <a href="/profile/{{ current_user.username }}" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-user mr-1"></i> Profile</a>
             <a href="/messages" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-envelope mr-1"></i> Messages</a>
             <a href="/notifications" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fa-solid fa-bell"></i> Notifications</a>
-            <a href="/logout" class="block px-4 py-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
+            <a href="/logout" class="block px-4 px-2 hover:bg-gray-700 transition duration-300"><i class="fas fa-sign-out-alt mr-1"></i> Logout</a>
         </div>
     </nav>
 
@@ -64,11 +64,17 @@
             </div>
             <p class="text-xl text-gray-700 mt-8 mb-4 opacity-0" id="apology">
                 Uh-oh! 🚧 This page is still under construction! 🛠️✨<br>
-                - Michael Moses (Developer) 😅🚀
+                It looks like the constructor hasn't been paid. 💸<br>
+                - **Michael Moses** (Developer) 😅🚀
             </p>
             <a href="/" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 inline-block opacity-0" id="home-button">
                 Return to Home
             </a>
+            <div class="opacity-0 mt-4" id="game-link">
+                <a href="https://huggingface.co/spaces/micymike/starlets-tictactoe" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 inline-block">
+                    Play this game while the developer thinks of what to do 🎮
+                </a>
+            </div>
         </div>
     </main>
 
@@ -86,6 +92,7 @@
             gsap.to("#error-icon", {opacity: 1, scale: 1.1, duration: 1, delay: 0.6, ease: "power3.out"});
             gsap.to("#apology", {opacity: 1, y: -20, duration: 1, delay: 0.9, ease: "power3.out"});
             gsap.to("#home-button", {opacity: 1, y: -20, duration: 1, delay: 1.2, ease: "power3.out"});
+            gsap.to("#game-link", {opacity: 1, y: -20, duration: 1, delay: 1.5, ease: "power3.out"});
         });
     </script>
 </body>
