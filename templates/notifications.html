@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notifications - LuNa</title>
+    <title>404 - Page Not Found - LuNa</title>
     <link rel="shortcut icon" href="{{ url_for('static', filename='Luna-icon.png') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <style>
         @keyframes gradientBG {
             0% { background-position: 0% 50%; }
@@ -19,16 +19,16 @@
             background-size: 400% 400%;
             animation: gradientBG 15s ease infinite;
         }
-        #notification-popup {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            display: none;
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
         }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-100 min-h-screen flex flex-col">
     <nav class="gradient-bg p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
             <a href="/" class="text-white text-2xl font-bold flex items-center">
@@ -55,25 +55,22 @@
         </div>
     </nav>
 
-    <div id="notification-popup" class="bg-blue-500 text-white p-4 rounded-lg shadow-lg">
-        <p id="notification-message"></p>
-    </div>
-
-    <main class="container mx-auto mt-8">
-        <div class="bg-white rounded-lg shadow-md p-8">
-            <h1 class="text-2xl font-bold mb-6">Notifications</h1>
-            <div id="notifications-container" class="space-y-4">
-                {% for notification in notifications %}
-                    <div class="p-4 bg-gray-50 rounded-lg {% if not notification.read %}border-l-4 border-blue-500{% endif %}">
-                        <p>{{ notification.content }}</p>
-                        <p class="text-xs text-gray-500 mt-1">{{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
-                    </div>
-                {% endfor %}
+    <main class="flex-grow flex items-center justify-center px-4">
+        <div class="text-center">
+            <h1 class="text-9xl font-bold text-gray-800 mb-4 opacity-0" id="error-code">404</h1>
+            <p class="text-2xl text-gray-600 mb-8 opacity-0" id="error-message">Oops! Page not found</p>
+            <div class="animate-float opacity-0" id="error-icon">
+                <i class="fas fa-rocket text-8xl text-blue-500"></i>
             </div>
+            <p class="text-xl text-gray-700 mt-8 mb-4 opacity-0" id="apology">
+                Uh-oh! 🚧 This page is still under construction! 🛠️✨<br>
+                - Michael Moses (Developer) 😅🚀
+            </p>
+            <a href="/" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 inline-block opacity-0" id="home-button">
+                Return to Home
+            </a>
         </div>
     </main>
-
-
 
     <script>
         // Toggle menu for mobile devices
@@ -82,28 +79,13 @@
             dropdownMenu.classList.toggle('hidden');
         });
 
-        // Socket.io connection and notification handling
-        const socket = io();
-        const notificationPopup = document.getElementById('notification-popup');
-        const notificationMessage = document.getElementById('notification-message');
-        const notificationsContainer = document.getElementById('notifications-container');
-
-        socket.on('new_notification', (data) => {
-            // Display pop-up notification
-            notificationMessage.textContent = data.content;
-            notificationPopup.style.display = 'block';
-            setTimeout(() => {
-                notificationPopup.style.display = 'none';
-            }, 5000); // Hide after 5 seconds
-
-            // Add new notification to the list
-            const notificationDiv = document.createElement('div');
-            notificationDiv.className = 'p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500';
-            notificationDiv.innerHTML = `
-                <p>${data.content}</p>
-                <p class="text-xs text-gray-500 mt-1">${new Date().toLocaleString()}</p>
-            `;
-            notificationsContainer.insertBefore(notificationDiv, notificationsContainer.firstChild);
+        // Animations
+        window.addEventListener('load', function() {
+            gsap.to("#error-code", {opacity: 1, y: -20, duration: 1, ease: "power3.out"});
+            gsap.to("#error-message", {opacity: 1, y: -20, duration: 1, delay: 0.3, ease: "power3.out"});
+            gsap.to("#error-icon", {opacity: 1, scale: 1.1, duration: 1, delay: 0.6, ease: "power3.out"});
+            gsap.to("#apology", {opacity: 1, y: -20, duration: 1, delay: 0.9, ease: "power3.out"});
+            gsap.to("#home-button", {opacity: 1, y: -20, duration: 1, delay: 1.2, ease: "power3.out"});
         });
     </script>
 </body>
