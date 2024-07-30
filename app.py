@@ -1,5 +1,6 @@
 import json
 import logging
+import random
 import re
 import os
 import emojis
@@ -446,7 +447,7 @@ def messages(recipient_id):
     
     recipient = User.query.get(recipient_id) if recipient_id else None
     messages = get_messages(current_user.id, recipient_id) if recipient_id else []
-    starters = suggest_conversation_starters(current_user.id, recipient_id) if recipient_id else []
+    starters = get_conversation_starters(current_user.id, recipient_id) if recipient_id else []
     
     return render_template('messages.html', 
                            messages=messages, 
@@ -456,17 +457,49 @@ def messages(recipient_id):
                            current_user=current_user)
 
 
-@app.route('/api/conversation_starters/<int:other_user_id>')
+@app.route('/api/conversation_starters/<int:recipient_id>')
 @login_required
-def api_conversation_starters(other_user_id):
+def api_conversation_starters(recipient_id):
+    if recipient_id is None:
+        return jsonify({'error': 'No recipient specified'}), 400
     try:
-        starters = suggest_conversation_starters(current_user.id, other_user_id)
-        return jsonify({'starters': starters})
+        starters = get_conversation_starters(current_user.id, recipient_id)
+        return jsonify({'starters': starters}), 200
     except Exception as e:
-        app.logger.error(f"Error fetching conversation starters: {e}")
-        return jsonify({'error': 'Internal Server Error'}), 500
+        app.logger.error(f"Error generating conversation starters: {str(e)}")
+        return jsonify({'error': 'Failed to generate conversation starters'}), 500
 
-
+def get_conversation_starters(user_id, other_user_id):
+    user = User.query.get(user_id)
+    other_user = User.query.get(other_user_id)
+    
+    if not user or not other_user:
+        raise ValueError("User not found")
+    
+    general_starters = [
+        "How's your day going so far?",
+        "Any exciting plans for the weekend?",
+        "What's your favorite way to relax after a long day?",
+        "Have you read any good books or watched any interesting movies lately?",
+        "If you could travel anywhere in the world right now, where would you go?",
+        "What's the best piece of advice you've ever received?",
+        "Do you have any hobbies or passions you'd like to share?",
+        "What's your idea of a perfect day?",
+        "If you could have dinner with any historical figure, who would it be and why?",
+        "What's the most interesting place you've ever visited?"
+    ]
+    
+    # You can add more specific starters based on user profiles if available
+    specific_starters = []
+    if user.bio and other_user.bio:
+        specific_starters.append(f"I noticed in your bio that you mentioned {other_user.bio.split()[0]}. Could you tell me more about that?")
+    
+    # Combine and shuffle the starters
+    all_starters = specific_starters + general_starters
+    random.shuffle(all_starters)
+    
+    # Return 5 random starters
+    return all_starters[:5]
 @app.route('/send_message/<int:recipient_id>', methods=['POST'])
 @login_required
 @cache.memoize(300)
@@ -548,37 +581,43 @@ def generate_ai_reply(content):
 @app.route('/generate_ai_reply/<int:recipient_id>', methods=['POST'])
 @login_required
 def api_generate_ai_reply(recipient_id):
-    # Fetch the latest message content from the chat with the recipient
-    last_message = Message.query.filter(
-        ((Message.sender_id == current_user.id) & (Message.recipient_id == recipient_id)) |
-        ((Message.sender_id == recipient_id) & (Message.recipient_id == current_user.id))
-    ).order_by(Message.timestamp.desc()).first()
+    if recipient_id is None:
+        return jsonify({'error': 'No recipient specified'}), 400
+    try:
+        # Fetch the latest message content from the chat with the recipient
+        last_message = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.recipient_id == recipient_id)) |
+            ((Message.sender_id == recipient_id) & (Message.recipient_id == current_user.id))
+        ).order_by(Message.timestamp.desc()).first()
+        
+        if last_message:
+            content = last_message.content
+            ai_reply = generate_ai_reply(content)
+            
+            # Send the AI reply to the chat
+            new_message, error = send_message_helper(current_user.id, recipient_id, ai_reply)
+            if error:
+                return jsonify({'error': error}), 400
+            
+            message_data = {
+                'id': new_message.id,
+                'sender_id': current_user.id,
+                'recipient_id': recipient_id,
+                'content': ai_reply,
+                'timestamp': new_message.timestamp.isoformat()
+            }
+            
+            # Broadcast the AI message to both users
+            socketio.emit('new_message', message_data, room=str(recipient_id))
+            socketio.emit('new_message', message_data, room=str(current_user.id))
+            
+            return jsonify({'reply': ai_reply}), 200
+        else:
+            return jsonify({'error': 'No previous message found to base AI reply on'}), 400
+    except Exception as e:
+        app.logger.error(f"Error generating AI reply: {str(e)}")
+        return jsonify({'error': 'Failed to generate AI reply'}), 500
     
-    if last_message:
-        content = last_message.content
-        ai_reply = generate_ai_reply(content)
-        
-        # Send the AI reply to the chat
-        new_message, error = send_message_helper(current_user.id, recipient_id, ai_reply)
-        if error:
-            return jsonify({'error': error}), 400
-        
-        message_data = {
-            'id': new_message.id,
-            'sender_id': current_user.id,
-            'recipient_id': recipient_id,
-            'content': ai_reply,
-            'timestamp': new_message.timestamp.isoformat()
-        }
-        
-        # Broadcast the AI message to both users
-        socketio.emit('new_message', message_data, room=str(recipient_id))
-        socketio.emit('new_message', message_data, room=str(current_user.id))
-        
-        return jsonify({'reply': ai_reply}), 200
-    else:
-        return jsonify({'error': 'No previous message found to base AI reply on'}), 400
-
 def send_message_helper(sender_id, recipient_id, content, media_url=None):
     try:
         if not content.strip():
@@ -635,32 +674,6 @@ def get_available_users():
     users = User.query.filter(User.id != current_user.id).all()
     return [{'id': user.id, 'username': user.username, 'profile_picture': user.profile_picture} for user in users]
 
-def suggest_conversation_starters(user_id, other_user_id):
-    try:
-        user = User.query.get(user_id)
-        other_user = User.query.get(other_user_id)
-        if not user or not other_user:
-            raise ValueError("User not found")
-
-        prompt = f"""
-            Suggest 3 conversation starters for two users based on their profiles:
-            
-            User 1: {user.bio}
-            User 2: {other_user.bio}
-            
-            Provide engaging and relevant conversation starters that could help these users connect. Include relevant emojis and exclude asterisks in your responses.
-            """
-
-        response = model.generate_content(prompt)
-        
-        if response and hasattr(response, 'text'):
-            return response.text.split('\n')
-        else:
-            raise ValueError("Invalid response from model")
-
-    except Exception as e:
-        app.logger.error(f"Error generating conversation starters: {e}")
-        return ["Sorry, we couldn't generate conversation starters at the moment."]
 
 
 @app.route('/notifications')

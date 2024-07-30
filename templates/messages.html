@@ -163,11 +163,13 @@
 
             <!-- Chat Area -->
             <div class="w-full md:w-3/4 bg-white p-4 rounded-lg shadow ml-0 md:ml-4 flex flex-col">
-                {% if recipient %}
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-bold">Chatting with {{ recipient.username }}</h2>
-                        <button id="clearChat" class="bg-red-500 text-white px-4 py-2 rounded">Clear Chat</button>
-                    </div>
+              {% if recipient %}
+              <div class="flex justify-between items-center mb-4">
+                  <h2 class="text-lg font-bold">Chatting with {{ recipient.username }}</h2>
+                  <button id="clearChatBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                      Clear Chat
+                  </button>
+              </div>
 
                     <!-- Messages -->
                     <div id="messages" class="flex-1 overflow-y-auto mb-4 p-4">
@@ -202,13 +204,18 @@
                     </form>
 
                     <!-- AI Reply Button -->
+                    <button id="aiReplyBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-4">
+                      Generate AI Reply
+                  </button>
 
-                    <button id="showStarters" class="bg-green-500 text-white px-4 py-2 rounded mb-4">Show Conversation Starters</button>
-        
-                    <div id="conversation-starters" class="mt-4 hidden bg-gray-100 p-4 rounded-lg">
-                        <h3 class="text-lg font-bold mb-2">Conversation Starters</h3>
-                        <ul id="startersList"></ul>
-                    </div>
+                    <button id="showStartersBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded mb-4">
+                      Show Conversation Starters
+                  </button>
+              
+                  <div id="conversation-starters" class="mt-4 hidden bg-gray-100 p-4 rounded-lg">
+                      <h3 class="text-lg font-bold mb-2">Conversation Starters</h3>
+                      <ul id="starters-list"></ul>
+                  </div>
                 {% else %}
                     <p class="text-center text-gray-500">Select a user to start chatting.</p>
                 {% endif %}
@@ -220,125 +227,215 @@
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
 
     <script>
-  // Establish socket connection
-  const socket = io({
-    transports: ['websocket'],
-    upgrade: false
-  });
-
-  // DOM elements
-  const messages = document.getElementById('messages');
-  const aiReplyBtn = document.getElementById('aiReply');
-  const showStartersBtn = document.getElementById('showStarters');
-  const startersList = document.getElementById('startersList');
-  const conversationStarters = document.getElementById('conversation-starters');
-  const messageInput = document.querySelector('input[name="content"]');
-  const sendMessageBtn = document.querySelector('button.send-button');
-  const clearChatBtn = document.getElementById('clearChat');
-
-  // Replace with actual recipient ID
-  let recipientId = '{{ recipient.id if recipient else "null" }}'; // Ensure recipient ID is available
-
-  // Show Conversation Starters functionality
-  showStartersBtn.addEventListener('click', () => {
-    if (recipientId) {
-      axios.get(`/api/conversation_starters/${recipientId}`)
-        .then(response => {
-          startersList.innerHTML = '';
-          response.data.starters.forEach(starter => {
-            const li = document.createElement('li');
-            li.textContent = starter.replace(/\*/g, ''); // Remove asterisks
-            li.classList.add('cursor-pointer', 'hover:bg-gray-200', 'p-2', 'rounded');
-            li.addEventListener('click', () => {
-              messageInput.value = starter;
-              conversationStarters.classList.add('hidden');
+      document.addEventListener('DOMContentLoaded', function() {
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const messagesContainer = document.getElementById('messages');
+        const showStartersBtn = document.getElementById('showStartersBtn');
+        const conversationStarters = document.getElementById('conversation-starters');
+        const startersList = document.getElementById('starters-list');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        const aiReplyBtn = document.getElementById('aiReplyBtn');
+    
+        let recipientId = new URLSearchParams(window.location.search).get('recipient_id');
+    
+        if (messageForm) {
+            messageForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                sendMessage();
             });
-            startersList.appendChild(li);
-          });
-          conversationStarters.classList.toggle('hidden');
-        })
-        .catch(error => {
-          console.error('Error fetching conversation starters:', error);
+        }
+    
+        if (showStartersBtn) {
+            showStartersBtn.addEventListener('click', function() {
+                toggleConversationStarters();
+            });
+        }
+    
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', function() {
+                clearChat();
+            });
+        }
+    
+        if (aiReplyBtn) {
+            aiReplyBtn.addEventListener('click', function() {
+                generateAIReply();
+            });
+        }
+    
+        function sendMessage() {
+            const content = messageInput.value.trim();
+            if (content) {
+                fetch(`/send_message/${recipientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `content=${encodeURIComponent(content)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error:', data.error);
+                    } else {
+                        appendMessage(data);
+                        messageInput.value = '';
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+        }
+    
+        function appendMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `flex items-start mb-4 ${message.sender_id === currentUserId ? 'justify-end' : ''}`;
+            messageElement.innerHTML = `
+                ${message.sender_id !== currentUserId ? `<img src="${message.sender_profile_picture}" alt="${message.sender_username}" class="w-8 h-8 rounded-full mr-2">` : ''}
+                <div class="${message.sender_id !== currentUserId ? 'ml-2' : 'mr-2'}">
+                    <div class="chat-bubble ${message.sender_id === currentUserId ? 'right' : 'left'}">
+                        ${message.content}
+                        ${message.media_url ? `<img src="${message.media_url}" alt="Media" class="mt-2 rounded-lg max-w-full">` : ''}
+                    </div>
+                    <span class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</span>
+                </div>
+            `;
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    
+        function toggleConversationStarters() {
+            if (conversationStarters.classList.contains('hidden')) {
+                fetch(`/api/conversation_starters/${recipientId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        startersList.innerHTML = '';
+                        data.starters.forEach(starter => {
+                            const li = document.createElement('li');
+                            li.textContent = starter;
+                            li.className = 'cursor-pointer hover:bg-gray-200 p-2 rounded';
+                            li.addEventListener('click', () => {
+                                messageInput.value = starter;
+                                conversationStarters.classList.add('hidden');
+                            });
+                            startersList.appendChild(li);
+                        });
+                        conversationStarters.classList.remove('hidden');
+                    })
+                    .catch(error => console.error('Error:', error));
+            } else {
+                conversationStarters.classList.add('hidden');
+            }
+        }
+    
+        function clearChat() {
+            if (confirm('Are you sure you want to clear the chat history?')) {
+                fetch(`/delete_chat_history/${recipientId}`, {
+                    method: 'POST',
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        messagesContainer.innerHTML = '';
+                    } else {
+                        console.error('Error:', data.message);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+        }
+    
+        function generateAIReply() {
+            fetch(`/generate_ai_reply/${recipientId}`, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                } else {
+                    appendMessage({
+                        sender_id: recipientId,
+                        content: data.reply,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    });
+
+    let recipientId = new URLSearchParams(window.location.search).get('recipient_id');
+
+    if (showStartersBtn) {
+        showStartersBtn.addEventListener('click', function() {
+            if (recipientId) {
+                toggleConversationStarters();
+            } else {
+                alert('Please select a user to chat with first.');
+            }
         });
-    } else {
-      console.warn('Recipient ID is not available.');
     }
-  });
 
-  // Send message functionality
-  function sendMessage() {
-    const content = messageInput.value.trim();
-    if (content) {
-      const recipientId = recipientId || null;
-      if (recipientId) {
-        axios.post('/send_message', { recipient_id: recipientId, content: content })
-          .then(response => {
-            addMessageToChat(content, false);
-            messageInput.value = '';
-          })
-          .catch(error => {
-            console.error('Error sending message:', error);
-          });
-      }
-    }
-  }
-
-  sendMessageBtn.addEventListener('click', sendMessage);
-  messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  // Clear chat functionality
-  clearChatBtn.addEventListener('click', () => {
-    const recipientId = recipientId || null;
-    if (recipientId && confirm('Are you sure you want to clear this chat?')) {
-      axios.post(`/clear_chat/${recipientId}`)
-        .then(() => {
-          messages.innerHTML = '';
-        })
-        .catch(error => {
-          console.error('Error clearing chat:', error);
+    if (aiReplyBtn) {
+        aiReplyBtn.addEventListener('click', function() {
+            if (recipientId) {
+                generateAIReply();
+            } else {
+                alert('Please select a user to chat with first.');
+            }
         });
     }
-  });
 
-  // Socket.io event listeners
-  socket.on('new_message', (data) => {
-    addMessageToChat(data.content, data.sender_id !== currentUserId);
-  });
-
-  // Helper function to add a message to the chat
-  function addMessageToChat(content, isReceived) {
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('flex', 'items-start', 'mb-4');
-    if (!isReceived) {
-      messageDiv.classList.add('justify-end');
+    function toggleConversationStarters() {
+        if (!recipientId) {
+            console.error('No recipient selected');
+            return;
+        }
+        if (conversationStarters.classList.contains('hidden')) {
+            fetch(`/api/conversation_starters/${recipientId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // ... (rest of the function remains the same)
+                })
+                .catch(error => console.error('Error:', error));
+        } else {
+            conversationStarters.classList.add('hidden');
+        }
     }
 
-    messageDiv.innerHTML = `
-      ${isReceived ? `<img src="${recipientProfilePicture}" alt="${recipientUsername}" class="w-8 h-8 rounded-full mr-2">` : ''}
-      <div class="${isReceived ? 'ml-2' : 'mr-2'}">
-        <div class="chat-bubble ${isReceived ? 'left' : 'right'}">
-          ${content}
-        </div>
-        <span class="message-timestamp">${new Date().toLocaleTimeString()}</span>
-      </div>
-    `;
-
-    messages.appendChild(messageDiv);
-    messages.scrollTop = messages.scrollHeight;
-  }
-
-  // Initialize tooltips (make sure Tippy.js is included if using)
-  if (typeof tippy === 'function') {
-    tippy('[data-tippy-content]');
-  }
-
-  // Add smooth scrolling to messages container
-  messages.style.scrollBehavior = 'smooth';
+    function generateAIReply() {
+        if (!recipientId) {
+            console.error('No recipient selected');
+            return;
+        }
+        fetch(`/generate_ai_reply/${recipientId}`, {
+            method: 'POST',
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                console.error('Error:', data.error);
+            } else {
+                appendMessage({
+                    sender_id: recipientId,
+                    content: data.reply,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
     </script>
 </body>
 </html>
