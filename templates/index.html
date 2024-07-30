@@ -90,15 +90,16 @@
             <div class="w-full sm:w-1/4 pr-0 sm:pr-4 mb-4 sm:mb-0">
                 <div class="bg-white shadow rounded-lg p-4 mb-4 post-card">
                     {% if current_user.is_authenticated %}
-                        {% if current_user.profile_picture %}
-                            <img src="{{ url_for('static', filename='uploads/' + current_user.profile_picture) }}" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500">
-                        {% else %}
-                            <div class="user-initial w-32 h-32 mx-auto mb-4 border-4 border-blue-500 text-5xl flex items-center justify-center">
-                                {{ current_user.username[0].upper() }}
-                            </div>
-                        {% endif %}
-                        <h2 class="text-xl font-bold text-center">{{ current_user.username }}</h2>
-                        <p class="text-center mt-2">{{ current_user.bio }}</p>
+                    {% if current_user.profile_picture %}
+                    <img src="{{ url_for('static', filename='uploads/' + current_user.profile_picture) }}" alt="Profile Picture" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500">
+                {% else %}
+                    <div class="user-initial w-32 h-32 mx-auto mb-4 border-4 border-blue-500 text-5xl flex items-center justify-center rounded-full bg-gray-300 text-gray-600">
+                        {{ current_user.username[0].upper() }}
+                    </div>
+                {% endif %}
+                
+                <h2 class="text-xl font-bold text-center">{{ current_user.username }}</h2>
+                <p class="text-center mt-2">{{ current_user.bio or "No bio available" }}</p>
                    {% else %}
                         <p class="text-center">Please <a href="{{ url_for('login') }}" class="text-blue-500 hover:underline">log in</a> to see your profile.</p>
                     {% endif %} 
